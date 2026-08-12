@@ -1,0 +1,29 @@
+# 数据（大文件，不入库）
+dataset/
+
+# 输出与运行时产物
+output_dir/
+my_work.zip
+*.zip
+checkpoints/
+ckpt/
+runs/
+wandb/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 模型权重（大文件，下载/训练生成）
+*.safetensors
+*.pth
+*.ckpt
+*.pt
+
+# 编辑器/系统
+.idea/
+.vscode/
+.DS_Store
