@@ -14,7 +14,6 @@ from enhance.inference.tiler import accumulate_tile, finalize, tile_weights, til
 from enhance.model.stage1 import load_nafnet
 from enhance.model.stage2 import stage2_refine
 
-
 class EnhancementEngine:
     """4K 增强推理引擎。Stage-1 模型惰性加载并缓存，避免重复载权。
 
@@ -125,7 +124,6 @@ class EnhancementEngine:
         out = self.enhance(rgb)
         out_bgr = cv2.cvtColor((out * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
         cv2.imwrite(str(out_path), out_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-
 
 if __name__ == "__main__":
     # 使用示例：构造配置对合成小块图像执行增强流水线

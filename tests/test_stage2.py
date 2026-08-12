@@ -3,7 +3,6 @@ import pytest
 
 from enhance.model.stage2 import stage2_refine
 
-
 @pytest.mark.gpu
 def test_stage2_refine_shapes(tmp_path):
     img = np.random.default_rng(0).random((256, 256, 3), dtype=np.float32)

@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from enhance.config import Config
 from enhance.inference.engine import EnhancementEngine
 
-
 @pytest.fixture
 def cfg():
     """构造一个最小可用配置对象，避免依赖 config.yaml 文件。"""
@@ -49,11 +48,9 @@ def cfg():
         alpha=0.4,
     )
 
-
 def _mock_load_nafnet(weights_path, device="cpu", **kwargs):
     """返回一个轻量恒等模块，模拟 NAFNet 行为（输入→输出同形状）。"""
     return torch.nn.Identity().to(device)
-
 
 def _mock_stage2_refine(control_image, out_path, steps=20, guidance=2.0,
                         tile_size=512, stride=256):
@@ -64,7 +61,6 @@ def _mock_stage2_refine(control_image, out_path, steps=20, guidance=2.0,
     with open(out_path, "wb") as f:
         f.write(b"mock")
     return control_image.copy()
-
 
 def test_enhance_returns_same_shape(cfg, monkeypatch):
     """engine.enhance() 在 mock 模型下应返回与输入同形状的输出。"""
@@ -82,7 +78,6 @@ def test_enhance_returns_same_shape(cfg, monkeypatch):
     # 输出应在 [0,1] 范围（旋钮融合后裁剪）
     assert out.min() >= 0.0 and out.max() <= 1.0
 
-
 def test_enhance_path_writes_file(cfg, monkeypatch, tmp_path):
     """engine.enhance_path() 应成功读取输入图像并写入输出文件。"""
     monkeypatch.setattr(
@@ -98,7 +93,6 @@ def test_enhance_path_writes_file(cfg, monkeypatch, tmp_path):
     cv2.imwrite(str(in_path), np.zeros((1, 1, 3), dtype=np.uint8))
     engine.enhance_path(in_path, out_path)
     assert out_path.exists(), f"输出文件 {out_path} 未创建"
-
 
 def test_temp_dir_cleaned(cfg, monkeypatch):
     """enhance() 调用后临时目录应已清理。"""

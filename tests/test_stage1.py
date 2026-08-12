@@ -1,7 +1,6 @@
 """Stage-1 NAFNet 加载器与训练流程的单元测试。"""
 from pathlib import Path
 
-import pytest
 import torch
 
 from enhance.model.stage1 import load_nafnet

@@ -5,7 +5,9 @@ dataset/
 vendor/
 
 # 输出与运行时产物
+output/
 output_dir/
+*.log
 my_work.zip
 *.zip
 checkpoints/
@@ -31,3 +33,6 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+
+# Claude Code 本地状态
+.claude/

@@ -10,7 +10,6 @@ import numpy as np
 from enhance.config import Config
 from enhance.evaluate.metrics import report
 
-
 def main():
     cfg = Config.from_yaml(Path("config.yaml"))
     vdir = Path(cfg.val_dir)
@@ -23,7 +22,6 @@ def main():
         for k in totals:
             totals[k].append(r[k])
     print("均值:", {k: round(float(np.mean(v)), 3) for k, v in totals.items()})
-
 
 if __name__ == "__main__":
     main()

@@ -1,9 +1,7 @@
 """逐对退化画像：估计噪声、色彩偏移，并提供 LQ→GT 色彩归一化。"""
 from dataclasses import dataclass
-from typing import Tuple
 
 import numpy as np
-
 
 @dataclass
 class Profile:
@@ -12,13 +10,11 @@ class Profile:
     color_gain: np.ndarray
     color_offset: np.ndarray
 
-
 def _laplacian_detail(img: np.ndarray) -> float:
     """返回图像平均拉普拉斯绝对值，用于粗估高频细节量。"""
     g = img.mean(axis=2)
     lap = 4 * g - (np.roll(g, 1, 0) + np.roll(g, -1, 0) + np.roll(g, 1, 1) + np.roll(g, -1, 1))
     return float(np.abs(lap).mean())
-
 
 def estimate_profile(lq: np.ndarray, hr: np.ndarray) -> Profile:
     """估计一对 (LQ, HR) 的噪声水平与逐通道色彩增益/偏移（最小二乘）。"""
@@ -34,11 +30,9 @@ def estimate_profile(lq: np.ndarray, hr: np.ndarray) -> Profile:
         gain[c], off[c] = g, o
     return Profile(noise_std=noise_std, color_gain=gain.astype(np.float32), color_offset=off.astype(np.float32))
 
-
 def apply_color_normalize(lq: np.ndarray, p: Profile) -> np.ndarray:
     """按画像的增益/偏移把 LQ 归一化到 HR 的色彩空间。"""
     return np.clip(lq * p.color_gain + p.color_offset, 0.0, 1.0)
-
 
 if __name__ == "__main__":
     # 使用示例：估计一对 LQ/HR 的退化画像并做色彩归一化

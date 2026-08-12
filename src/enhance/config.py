@@ -4,7 +4,6 @@ from pathlib import Path
 
 import yaml
 
-
 @dataclass
 class Config:
     """运行时配置：把 config.yaml 的字段扁平化为单个 dataclass 对象，后续模块统一从这里取值。"""
@@ -67,7 +66,6 @@ class Config:
             w=d["knobs"]["w"],
             alpha=d["knobs"]["alpha"],
         )
-
 
 if __name__ == "__main__":
     # 使用示例：从项目根目录的 config.yaml 加载配置

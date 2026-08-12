@@ -1,5 +1,5 @@
 data:
-  root: dataset
+  root: dataset  # 预留（未消费）：训练数据根目录，下游未读取
   image_pairs_train_dir: dataset/ImagePairs/train
   val_dir: dataset/huawei/val
   test_dir: dataset/huawei/test
@@ -19,9 +19,9 @@ inference:
   tile_size: 512
   overlap: 128
   steps: 20
-  scheduler: dpm
-  batch_tiles: 8
-  use_tta: false
+  scheduler: dpm  # 预留（未消费）：采样器类型，下游未读取
+  batch_tiles: 8  # 预留（未消费）：批分块数，下游未读取
+  use_tta: false  # 预留（未消费）：TTA 开关，下游未读取
 model:
   stage1_pretrained: vendor/NAFNet/weights/NAFNet-SIDD-width64.pth
 knobs:

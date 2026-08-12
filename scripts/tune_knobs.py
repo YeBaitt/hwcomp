@@ -17,13 +17,11 @@ from enhance.inference.engine import EnhancementEngine
 LAM_GRID = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 ALPHA_GRID = [0.0, 0.3, 0.5]
 
-
 def load_pair(vdir: Path, name: str):
     """读取 name_lq/name_gt 为 RGB float32 [0,1]，返回 (lq, gt)。"""
     lq = cv2.cvtColor(cv2.imread(str(vdir / f"{name}_lq.jpg")), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     gt = cv2.cvtColor(cv2.imread(str(vdir / f"{name}_gt.jpg")), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     return lq, gt
-
 
 def main():
     cfg = Config.from_yaml(Path("config.yaml"))
@@ -74,7 +72,6 @@ def main():
     print("最优 PSNR 行:", max(rows, key=lambda r: r["psnr"]))
     if failed:
         print("失败图像:", failed)
-
 
 if __name__ == "__main__":
     main()

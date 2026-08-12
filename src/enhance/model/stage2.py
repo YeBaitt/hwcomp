@@ -21,7 +21,6 @@ _DIFFBIR = _VENDOR / "DiffBIR"
 
 _pipeline = None  # 惰性单例：进程内 DiffBIR pipeline，避免每次重复载权（~5GB SD 权重）
 
-
 def stage2_refine(control_image: np.ndarray, out_path: Path, steps: int = 20,
                   guidance: float = 2.0, tile_size: int = 512, stride: int = 256) -> np.ndarray:
     """对 control 图（stage-1 输出）做潜空间扩散细化，保存 out_path，返回 RGB [0,1] float32。
@@ -42,7 +41,6 @@ def stage2_refine(control_image: np.ndarray, out_path: Path, steps: int = 20,
     _save_uint8(out, out_path)
     return out
 
-
 def _build_pipeline():
     """构建 DiffBIR pipeline（须 cwd=vendor/DiffBIR，权重路径相对 CWD）。
 
@@ -57,7 +55,6 @@ def _build_pipeline():
 
     args = _make_args()  # 依据 inference.py parse_args 默认值构造 v2.1 args
     return BSRInferenceLoop(args).pipeline
-
 
 def _make_args():
     """按 inference.py parse_args 默认构造 v2.1 SR 配置（逐字段对齐源码）。"""
@@ -74,7 +71,6 @@ def _make_args():
     args.guidance = False      # load_cond_fn 需要，默认值来自 parse_args:224
     args.seed = 231            # 默认值来自 parse_args:250
     return args
-
 
 def _refine_inproc(control_image: np.ndarray, steps: int, guidance: float,
                    tile_size: int, stride: int) -> np.ndarray:
@@ -109,7 +105,6 @@ def _refine_inproc(control_image: np.ndarray, steps: int, guidance: float,
     # sample 形状 (1,H,W,3) uint8 → 转换为 float32 [0,1] 并去掉 batch 维
     return sample[0].astype(np.float32) / 255.0
 
-
 def _refine_via_cli(control_image: np.ndarray, steps: int, guidance: float,
                     tile_size: int, stride: int) -> np.ndarray:
     """subprocess 回退：DiffBIR CLI 同分辨率恢复（api-notes.md 入口命令）。
@@ -135,23 +130,19 @@ def _refine_via_cli(control_image: np.ndarray, steps: int, guidance: float,
         subprocess.run(cmd, cwd=str(_DIFFBIR), check=True, capture_output=True)
         return _load_uint8(out / "ctl.png")
 
-
 def _to_uint8(img: np.ndarray) -> np.ndarray:
     """RGB [0,1] → uint8。"""
     return (np.clip(img, 0, 1) * 255).astype(np.uint8)
-
 
 def _save_uint8(img: np.ndarray, path: Path) -> None:
     """把 RGB float32 [0,1] 图像写为 PNG（cv2 用 BGR）。"""
     bgr = cv2.cvtColor(_to_uint8(img), cv2.COLOR_RGB2BGR)
     cv2.imwrite(str(path), bgr)
 
-
 def _load_uint8(path: Path) -> np.ndarray:
     """读回 PNG 为 RGB float32 [0,1]。"""
     bgr = cv2.imread(str(path))
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-
 
 if __name__ == "__main__":
     # 使用示例：随机 control 图走一次 5 步采样（进程内路径）

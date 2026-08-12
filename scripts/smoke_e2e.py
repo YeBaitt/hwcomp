@@ -11,7 +11,6 @@ from enhance.config import Config
 from enhance.evaluate.metrics import report
 from enhance.inference.engine import EnhancementEngine
 
-
 def main():
     cfg = Config.from_yaml(Path("config.yaml"))
     engine = EnhancementEngine(cfg)
@@ -23,7 +22,6 @@ def main():
     enh = report(out, gt)
     print("LQ   :", {k: round(v, 3) for k, v in base.items()})
     print("增强后:", {k: round(v, 3) for k, v in enh.items()})
-
 
 if __name__ == "__main__":
     main()
