@@ -25,7 +25,9 @@ inference:
 model:
   stage1_pretrained: vendor/NAFNet/weights/NAFNet-SIDD-width64.pth
 knobs:
-  lam: 0.3
+  # Task 11 val 网格调优推荐（PSNR 24.505/SSIM 0.739/NIQE 4.201）：λ=0.2 陡沿后保持大部分感知增益且 PSNR 仅 -0.29dB；
+  # α=0.5 高频回注几乎免费 +0.09dB。仅改 lam/alpha，n/w 沿用配置。
+  lam: 0.2
   n: 0.15
   w: 2.0
-  alpha: 0.4
+  alpha: 0.5
