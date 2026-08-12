@@ -404,7 +404,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 
-Pair = dataclass
+
 @dataclass
 class Pair:
     lq_path: Path
@@ -1742,7 +1742,9 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     cases = sorted(test_dir.glob("case*.jpg"))
     for i, p in enumerate(cases):
-        out = out_dir / f"{p.stem}.jpg"
+        # 输出名 = 输入 stem 去掉 _lq 后缀（若存在），保证与官方 caseN.jpg 严格对应
+        out_name = p.stem[:-3] if p.stem.endswith("_lq") else p.stem
+        out = out_dir / f"{out_name}.jpg"
         if out.exists():
             print(f"[{i + 1}/{len(cases)}] 跳过已存在 {out.name}")
             continue
