@@ -6,7 +6,6 @@ import torch
 
 from enhance.model.stage1 import load_nafnet
 
-
 def test_load_nafnet_tiny_arch(tmp_path):
     """用合成小架构权重测试 load_nafnet：构造、保存、加载、推理，验证输出形状与设备。"""
     tiny_weights = tmp_path / "tiny.pth"
@@ -44,7 +43,6 @@ def test_load_nafnet_tiny_arch(tmp_path):
     with torch.no_grad():
         assert torch.allclose(model(x), ref(x), atol=1e-5)
 
-
 def test_load_nafnet_params_key(tmp_path):
     """load_nafnet 应正确处理 params 键嵌套的 checkpoint（真实 NAFNet 保存格式）。"""
     weights = tmp_path / "params_key.pth"
@@ -72,7 +70,6 @@ def test_load_nafnet_params_key(tmp_path):
         y = model(x)
     assert y.shape == (1, 3, 32, 32)
 
-
 def test_load_nafnet_flat_state_dict(tmp_path):
     """load_nafnet 应正确处理无嵌套的 flat state_dict。"""
     weights = tmp_path / "flat.pth"
@@ -99,7 +96,6 @@ def test_load_nafnet_flat_state_dict(tmp_path):
     with torch.no_grad():
         y = model(x)
     assert y.shape == (1, 3, 32, 32)
-
 
 def test_load_nafnet_default_params():
     """load_nafnet 默认参数（width=64）创建的模型应可前向传播。"""

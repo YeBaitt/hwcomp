@@ -20,7 +20,6 @@ def _build_model() -> torch.nn.Module:
                    enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2])
     return model.cuda()
 
-
 def train_stage1(cfg: Config) -> Path:
     """运行 Stage-1 NAFNet 微调训练，返回最终 checkpoint 路径。
 
@@ -71,7 +70,6 @@ def train_stage1(cfg: Config) -> Path:
     torch.save({"state_dict": model.state_dict()}, ckpt_path)
     print(f"[stage1] checkpoint 已保存: {ckpt_path}")
     return ckpt_path
-
 
 if __name__ == "__main__":
     # 使用示例：从 config.yaml 加载配置并运行完整训练

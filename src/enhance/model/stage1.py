@@ -35,7 +35,6 @@ def load_nafnet(weights_path: str, device: str = "cuda", width: int = 64,
     model.load_state_dict(state, strict=False)
     return model.to(device).eval()
 
-
 if __name__ == "__main__":
     # 使用示例：加载 SIDD 预训练权重，对合成小 patch 推理并打印输出形状
     weights = _VENDOR / "NAFNet" / "weights" / "NAFNet-SIDD-width64.pth"
