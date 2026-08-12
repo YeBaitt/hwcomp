@@ -345,8 +345,9 @@ from enhance.data.pairs import find_pairs, to_same_res
 
 
 def _img(h, w):
+    # 生成值域 [0,1] 的确定性图案：sin*cos∈[-1,1]，平移归一化以满足 inp 的范围断言
     yy, xx = np.mgrid[0:h, 0:w]
-    return (np.sin(yy / 5) * np.cos(xx / 4)).astype(np.float32)[..., None].repeat(3, axis=-1)
+    return (((np.sin(yy / 5) * np.cos(xx / 4)) + 1) / 2).astype(np.float32)[..., None].repeat(3, axis=-1)
 
 
 def test_to_same_res_2k_shape_and_value():
