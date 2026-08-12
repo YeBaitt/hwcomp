@@ -12,6 +12,7 @@
 
 - 一律使用项目专属环境 `hwcomp` 执行：`/home/liaitong/miniconda3/envs/hwcomp/bin/python`、`.../bin/pip`、`.../bin/pytest`。**该环境是全新创建的（Python 3.12，无任何包），Task 1 Step 4 一次性装好全部依赖后再用；绝不污染 `relags`。**
 - 遵循 `docs/代码规范.md`：导入全部置顶、函数/类必须中文 docstring（描述做什么）、嵌套 ≤3 层、`except` 非 `Exception` 时注释触发条件、禁止装饰分隔线、每模块单测 + `if __name__ == "__main__"` 示例。
+- **计划中代码示例仅为示意**：示例的 import 顺序与空行若与 `docs/代码规范.md` 冲突，**以代码规范为准**——import 置顶且 stdlib→第三方→项目内；顶层定义之间单空行、禁止连续两个空行。
 - 不引入无必要依赖；能用标准库/已有库解决的不新增。
 - 环境 Python 3.12（≥3.11，规范无需 PEP 563）；前向引用一律用字符串注解，不加 `from __future__ import annotations`。
 - 数据（`dataset/`）、权重（`checkpoints/`）、产物（`output_dir/`、`*.zip`）不入 git（已在 `.gitignore`）。
@@ -399,11 +400,12 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'enhance.data'`
 ```python
 # src/enhance/data/pairs.py
 """ImagePairs 真实双相机对解析与 2K/3.5K 同分辨率构造。"""
-import cv2
-import numpy as np
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
+
+import cv2
+import numpy as np
 
 
 @dataclass
