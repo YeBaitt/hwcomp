@@ -82,6 +82,26 @@ def apply_cleaner(self, lq, tiled, tile_size, tile_stride):
     return lq  # NAFNet 输出已作为 --input 传入，不需要再做 stage-1
 ```
 
+## 2b. 进程内 `pipeline.run()` 必须包 `torch.autocast`（4K 卡死的根因）
+
+**Task 10 实证（2026-08-12）：** CLI 路径在 `diffbir/inference/loop.py:180` 用
+`with torch.autocast(self.args.device, torch.float16)` 包裹 `pipeline.run()`，但 Task 9 的进程内
+路径直接调 `pipeline.run()` 没包 autocast，导致全部按 fp32 跑：
+
+- VAE 平铺中间态在 CPU 上暂存（`diffbir/utils/tilevae/tilevae.py` `tiles[i] = tile.cpu()`），fp32 使
+  内存翻倍；
+- 4K 下 VAE 共 192 个 256 平铺块，GroupNorm 统计阶段进入 CPU-only 长停滞：**0% GPU、~49GB RAM、
+  看似卡死**（实际是 fp32 慢 + CPU 内存压力）；
+- 证据：2048² 两步 134.6s→66.2s；3072×4096 两步 >480s（超时）→218.4s（加 autocast 后）。
+
+**结论（binding）：** 任何进程内 `pipeline.run()` 调用都必须写成：
+```python
+with torch.autocast("cuda", torch.float16):
+    sample = pipeline.run(ctrl[None], ...)   # 返回 (N,H,W,3) uint8
+```
+修后 4K（20 步）约 7-8 分钟/张，与 CLI 相当。`apply_cleaner` 若赋为实例属性，签名是
+`lambda lq, tiled, tile_size, tile_stride: lq`（实例属性不绑 self，4 个位置参数原样传入）。
+
 ## 3. 权重的确切路径与文件名
 
 所有权重通过 `load_model_from_url()`（`diffbir/utils/common.py` 第 113-120 行）从 `weights/` 目录（相对于 CWD）加载。因此必须从 `vendor/DiffBIR/` 运行推理脚本。
