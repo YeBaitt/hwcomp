@@ -14,9 +14,10 @@ def test_to_same_res_2k_shape_and_value():
     inp, target = to_same_res(lq, hr, "2k")
     assert inp.shape == target.shape == (32, 48, 3)
     assert inp.dtype == target.dtype == np.float32
-    # 2k 语义：target = hr 双三次缩到 lq 尺寸（锁定语义，防实现漂移）
-    expected = cv2.resize(hr, (48, 32), interpolation=cv2.INTER_CUBIC)
+    # 2k 语义：target = hr 双三次缩到 lq 尺寸并裁剪到 [0,1]（锁定语义，防实现漂移）
+    expected = np.clip(cv2.resize(hr, (48, 32), interpolation=cv2.INTER_CUBIC), 0.0, 1.0)
     assert np.allclose(target, expected, atol=1e-6)
+    assert 0.0 <= target.min() and target.max() <= 1.0
     assert 0.0 <= inp.min() and inp.max() <= 1.0
 
 def test_to_same_res_35k_shape():
