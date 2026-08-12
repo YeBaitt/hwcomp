@@ -25,6 +25,8 @@ class EnhancementDataset(Dataset):
     def __init__(self, pairs_root: Path, patch_size: int = 256, kind_2k_weight: float = 0.7, seed: int = 42):
         """扫描 pairs_root 下图像对，并记录采样参数与随机数生成器。"""
         self.pairs = find_pairs(pairs_root)
+        if not self.pairs:
+            raise ValueError(f"目录下未找到图像对: {pairs_root}")
         self.patch_size = patch_size
         self.kind_2k_weight = kind_2k_weight
         self.rng = np.random.default_rng(seed)
