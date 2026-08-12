@@ -490,10 +490,11 @@ def test_estimate_recovers_gain_offset():
     hr = _ramp(64, 64)
     gain = np.array([1.1, 0.9, 1.0], dtype=np.float32)
     off = np.array([0.05, -0.03, 0.0], dtype=np.float32)
-    lq = hr * gain + off
+    lq = hr * gain + off  # 构造退化：GT→LQ
     p = estimate_profile(lq, hr)
-    assert np.allclose(p.color_gain, gain, atol=1e-2)
-    assert np.allclose(p.color_offset, off, atol=1e-2)
+    # Profile 记录 LQ→GT 增益/偏移（设计文档 §4.2），故恢复的是 1/gain 与 -off/gain
+    assert np.allclose(p.color_gain, 1.0 / gain, atol=1e-2)
+    assert np.allclose(p.color_offset, -off / gain, atol=1e-2)
 
 
 def test_apply_normalize_aligns_mean():
@@ -516,26 +517,30 @@ Expected: FAIL with import error
 ```python
 # src/enhance/data/profile.py
 """逐对退化画像：估计噪声、色彩偏移，并提供 LQ→GT 色彩归一化。"""
-import numpy as np
 from dataclasses import dataclass
 from typing import Tuple
+
+import numpy as np
 
 
 @dataclass
 class Profile:
+    """逐对退化画像：噪声水平与逐通道色彩增益/偏移。"""
     noise_std: float
     color_gain: np.ndarray
     color_offset: np.ndarray
 
 
 def _laplacian_detail(img: np.ndarray) -> float:
+    """返回图像平均拉普拉斯绝对值，用于粗估高频细节量。"""
     g = img.mean(axis=2)
     lap = 4 * g - (np.roll(g, 1, 0) + np.roll(g, -1, 0) + np.roll(g, 1, 1) + np.roll(g, -1, 1))
     return float(np.abs(lap).mean())
 
 
 def estimate_profile(lq: np.ndarray, hr: np.ndarray) -> Profile:
-    # 噪声粗估：LQ 高频细节多余 HR 的部分
+    """估计一对 (LQ, HR) 的噪声水平与逐通道色彩增益/偏移（最小二乘）。"""
+    # 噪声粗估：LQ 高频细节多于 HR 的部分
     noise_std = max(0.0, (_laplacian_detail(lq) - _laplacian_detail(hr)))
     gain = np.zeros(3, dtype=np.float64)
     off = np.zeros(3, dtype=np.float64)
@@ -549,6 +554,7 @@ def estimate_profile(lq: np.ndarray, hr: np.ndarray) -> Profile:
 
 
 def apply_color_normalize(lq: np.ndarray, p: Profile) -> np.ndarray:
+    """按画像的增益/偏移把 LQ 归一化到 HR 的色彩空间。"""
     return np.clip(lq * p.color_gain + p.color_offset, 0.0, 1.0)
 ```
 
