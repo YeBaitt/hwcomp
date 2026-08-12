@@ -1544,17 +1544,23 @@ class EnhancementEngine:
             accumulate_tile(canvas, ws, rect, out, w)
         return finalize(canvas, ws)
 
-    def enhance(self, img: np.ndarray) -> np.ndarray:
+    def _stage2(self, img: np.ndarray) -> np.ndarray:
+        """整图 stage2：一次 stage2_refine（内部 cldm_tiled 4K 平铺），失败退回逐块缝合。
+
+        独立成方法供 Task 11 的旋钮网格复用：每张图只跑一次 stage2 并缓存，
+        网格内仅做廉价的 apply_knobs 重组。
+        """
         tmp = Path(tempfile.mkdtemp())
-        s1 = self._stage1(img)
-        # 首选整图一次 stage2_refine：其内部走 cldm_tiled 4K 平铺（DiffBIR 自带重叠平铺），
-        # 避免逐块启动子进程的分钟级开销。整图失败则退回逐块缝合路径。
         try:
-            d = stage2_refine(s1, tmp / "stage2.png", steps=self.cfg.steps, guidance=self.knobs.w,
-                              tile_size=self.cfg.tile_size, stride=self.cfg.tile_size - self.cfg.overlap)
+            return stage2_refine(img, tmp / "stage2.png", steps=self.cfg.steps, guidance=self.knobs.w,
+                                 tile_size=self.cfg.tile_size, stride=self.cfg.tile_size - self.cfg.overlap)
         except Exception as exc:
             print(f"整图 stage2 失败（{type(exc).__name__}: {exc}），退回逐块路径")
-            d = self._stage2_tiled(s1, tmp)
+            return self._stage2_tiled(img, tmp)
+
+    def enhance(self, img: np.ndarray) -> np.ndarray:
+        s1 = self._stage1(img)
+        d = self._stage2(s1)
         return apply_knobs(s1, d, img, self.knobs)
 
     def enhance_path(self, in_path: Path, out_path: Path) -> None:
