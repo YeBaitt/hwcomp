@@ -1684,12 +1684,10 @@ def main():
     print("写至", out_csv)
     print("最优 PSNR 行:", max(rows, key=lambda r: r["psnr"]))
 
-```
-> 注意：**禁止**用 `engine._stage2_tiled` 跑网格（每张 4K 图会触发约 60 次进程内逐块采样，数小时级）。必须用引擎的整图 `_stage2`（内部 cldm_tiled 4K 平铺，Task 10 已从 `enhance()` 抽出该方法）：每张 val 图只跑一次 stage1+stage2 并缓存，网格内仅做廉价的 `apply_knobs` 重组。`report` 默认 device="cpu"（NIQE/BRISQUE 等 pyiqa 首次调用会联网下载权重，需 `HF_ENDPOINT=https://hf-mirror.com`）。
-
 if __name__ == "__main__":
     main()
 ```
+> 注意：**禁止**用 `engine._stage2_tiled` 跑网格（每张 4K 图会触发约 60 次进程内逐块采样，数小时级）。必须用引擎的整图 `_stage2`（内部 cldm_tiled 4K 平铺，Task 10 已从 `enhance()` 抽出该方法）：每张 val 图只跑一次 stage1+stage2 并缓存，网格内仅做廉价的 `apply_knobs` 重组。`report` 默认 device="cpu"（NIQE/BRISQUE 等 pyiqa 首次调用会联网下载权重，需 `HF_ENDPOINT=https://hf-mirror.com`）。
 
 - [ ] **Step 2: 实现报告脚本**
 
