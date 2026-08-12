@@ -2,11 +2,12 @@
 
 通过 monkeypatch 将 stage1/stage2 替换为轻量模拟，确保流水线端到端跑通。
 """
+import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
+import cv2
 import numpy as np
 import pytest
 import torch
@@ -94,7 +95,6 @@ def test_enhance_path_writes_file(cfg, monkeypatch, tmp_path):
     in_path = tmp_path / "test_in.jpg"
     out_path = tmp_path / "test_out.jpg"
     # 写一个最小的 JPEG 输入（1x1 像素）
-    import cv2
     cv2.imwrite(str(in_path), np.zeros((1, 1, 3), dtype=np.uint8))
     engine.enhance_path(in_path, out_path)
     assert out_path.exists(), f"输出文件 {out_path} 未创建"
@@ -111,7 +111,6 @@ def test_temp_dir_cleaned(cfg, monkeypatch):
     engine = EnhancementEngine(cfg)
     img = np.random.default_rng(99).random((32, 32, 3), dtype=np.float32)
     # 记录 enhance 前后的 /tmp 条目
-    import os
     before = set(os.listdir(tempfile.gettempdir()))
     _ = engine.enhance(img)
     after = set(os.listdir(tempfile.gettempdir()))

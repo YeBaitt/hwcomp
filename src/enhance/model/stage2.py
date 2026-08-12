@@ -14,6 +14,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
 
 _VENDOR = Path(__file__).resolve().parents[3] / "vendor"
 _DIFFBIR = _VENDOR / "DiffBIR"
@@ -94,16 +95,17 @@ def _refine_inproc(control_image: np.ndarray, steps: int, guidance: float,
     # pipeline.run() 内部: lq 是 (N,H,W,3) uint8 → tensor [0,1] → apply_cleaner → apply_cldm → wavelet_reconstruction
     # 返回 (N,H,W,3) uint8，此处传入 batch=1
     ctrl = _to_uint8(control_image)
-    sample = _pipeline.run(
-        ctrl[None], steps=steps, strength=1.0,
-        cleaner_tiled=False, cleaner_tile_size=0, cleaner_tile_stride=0,
-        vae_encoder_tiled=True, vae_encoder_tile_size=256,
-        vae_decoder_tiled=True, vae_decoder_tile_size=256,
-        cldm_tiled=True, cldm_tile_size=tile_size, cldm_tile_stride=stride,
-        pos_prompt="", neg_prompt="low quality, blurry, low-resolution, noisy, unsharp, weird textures",
-        cfg_scale=guidance, start_point_type="noise", sampler_type="edm_dpm++_3m_sde",
-        noise_aug=0, rescale_cfg=False, s_churn=0, s_tmin=0, s_tmax=0, s_noise=1, eta=0, order=3,
-    )
+    with torch.autocast("cuda", dtype=torch.float16):
+        sample = _pipeline.run(
+            ctrl[None], steps=steps, strength=1.0,
+            cleaner_tiled=False, cleaner_tile_size=0, cleaner_tile_stride=0,
+            vae_encoder_tiled=True, vae_encoder_tile_size=256,
+            vae_decoder_tiled=True, vae_decoder_tile_size=256,
+            cldm_tiled=True, cldm_tile_size=tile_size, cldm_tile_stride=stride,
+            pos_prompt="", neg_prompt="low quality, blurry, low-resolution, noisy, unsharp, weird textures",
+            cfg_scale=guidance, start_point_type="noise", sampler_type="edm_dpm++_3m_sde",
+            noise_aug=0, rescale_cfg=False, s_churn=0, s_tmin=0, s_tmax=0, s_noise=1, eta=0, order=3,
+        )
     # sample 形状 (1,H,W,3) uint8 → 转换为 float32 [0,1] 并去掉 batch 维
     return sample[0].astype(np.float32) / 255.0
 

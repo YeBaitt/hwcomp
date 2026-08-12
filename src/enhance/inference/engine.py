@@ -2,6 +2,7 @@
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -83,18 +84,25 @@ class EnhancementEngine:
             accumulate_tile(canvas, ws, rect, out, w)
         return finalize(canvas, ws)
 
-    def _stage2(self, img: np.ndarray, tmp: Path) -> np.ndarray:
+    def _stage2(self, img: np.ndarray, tmp: Optional[Path] = None) -> np.ndarray:
         """整图一次 stage2_refine（内部 cldm_tiled 4K 进程内平铺），失败时退回逐块缝合。
 
         供 Task 11 旋钮网格重用：缓存的 diffused 结果可在不同 (λ,α) 下廉价重组，
-        无需重复运行扩散或退化到慢速逐块路径。
+        无需重复运行扩散或退化到慢速逐块路径。tmp 为 None 时自动创建临时目录。
         """
+        _cleanup = tmp is None
+        if tmp is None:
+            tmp = Path(tempfile.mkdtemp())
         try:
-            return stage2_refine(img, tmp / "stage2.png", steps=self.cfg.steps, guidance=self.knobs.w,
-                                 tile_size=self.cfg.tile_size, stride=self.cfg.tile_size - self.cfg.overlap)
-        except Exception as exc:
-            print(f"整图 stage2 失败（{type(exc).__name__}: {exc}），退回逐块路径")
-            return self._stage2_tiled(img, tmp)
+            try:
+                return stage2_refine(img, tmp / "stage2.png", steps=self.cfg.steps, guidance=self.knobs.w,
+                                     tile_size=self.cfg.tile_size, stride=self.cfg.tile_size - self.cfg.overlap)
+            except Exception as exc:
+                print(f"整图 stage2 失败（{type(exc).__name__}: {exc}），退回逐块路径")
+                return self._stage2_tiled(img, tmp)
+        finally:
+            if _cleanup:
+                shutil.rmtree(tmp, ignore_errors=True)
 
     def enhance(self, img: np.ndarray) -> np.ndarray:
         """执行完整的两阶段增强流水线，返回 RGB float32 [0,1] 增强图像。
