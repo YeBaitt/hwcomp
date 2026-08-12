@@ -879,13 +879,16 @@ def test_stitch_reconstructs_constant():
 
 
 def test_tile_weights_boundary_one():
+    # 边界权重和恒为 1（partition-of-unity）→ 顶/底边逐像素无黑边。
+    # 注意：单块在顶/底边的权重沿另一轴仍带接缝斜坡（如顶块 w[0,:] 右侧 1→0），
+    # 因此校验整行权重和而非单块全行恒 1。
     tiles = tiles_for(64, 96, 32, 8)
+    total = np.zeros((64, 96), dtype=np.float32)
     for rect, w in zip(tiles, tile_weights(tiles, (64, 96))):
         y0, y1, x0, x1 = rect
-        if y0 == 0:
-            assert np.allclose(w[0, :], 1.0)   # 贴顶边 → 权重 1，避免黑边
-        if y1 == 64:
-            assert np.allclose(w[-1, :], 1.0)  # 贴底边 → 权重 1
+        total[y0:y1, x0:x1] += w
+    assert np.allclose(total[0, :], 1.0)   # 顶边权重和为 1，避免黑边
+    assert np.allclose(total[-1, :], 1.0)  # 底边权重和为 1
 
 
 def test_tile_weights_internal_ramp_zero():
