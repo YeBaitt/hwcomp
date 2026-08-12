@@ -1,4 +1,4 @@
-"""图像质量指标：PSNR/SSIM 纯实现，LPIPS/NIQE/BRISQUE/MUSIQ 用 pyiqa 惰性加载。"""
+"""图像质量指标：PSNR/SSIM 纯实现，NIQE/BRISQUE/MUSIQ 用 pyiqa 惰性加载。"""
 from typing import Optional
 
 import numpy as np
@@ -24,29 +24,29 @@ def ssim(pred: np.ndarray, ref: np.ndarray) -> float:
     return float(structural_similarity(pred, ref, data_range=1.0))
 
 def _np_to_pyiqa(img: np.ndarray, device: str) -> torch.Tensor:
-    # pyiqa 输入要求 (1,3,H,W) RGB [0,1]
+    """把 RGB [0,1] 的 (H,W,3) 数组转成 pyiqa 需要的 (1,3,H,W) 张量。"""
     return torch.from_numpy(img.transpose(2, 0, 1))[None].to(device)
+
+def _pyiqa_metric(name: str, img: np.ndarray, device: str) -> float:
+    """用 pyiqa 计算指定无参考指标（首次调用会联网下载权重）。"""
+    m = pyiqa.create_metric(name)
+    with torch.no_grad():
+        return float(m(_np_to_pyiqa(img, device)).mean().item())
 
 def niqe(img: np.ndarray, device: str = "cpu") -> float:
     """计算无参考图像质量指标 NIQE，输入 RGB [0,1] 数组。"""
-    m = pyiqa.create_metric("niqe")
-    with torch.no_grad():
-        return float(m(_np_to_pyiqa(img, device)).mean().item())
+    return _pyiqa_metric("niqe", img, device)
 
 def brisque(img: np.ndarray, device: str = "cpu") -> float:
     """计算无参考图像质量指标 BRISQUE，输入 RGB [0,1] 数组。"""
-    m = pyiqa.create_metric("brisque")
-    with torch.no_grad():
-        return float(m(_np_to_pyiqa(img, device)).mean().item())
+    return _pyiqa_metric("brisque", img, device)
 
 def musiq(img: np.ndarray, device: str = "cpu") -> float:
     """计算无参考图像质量指标 MUSIQ，输入 RGB [0,1] 数组。"""
-    m = pyiqa.create_metric("musiq")
-    with torch.no_grad():
-        return float(m(_np_to_pyiqa(img, device)).mean().item())
+    return _pyiqa_metric("musiq", img, device)
 
 def report(pred: np.ndarray, ref: Optional[np.ndarray] = None, device: str = "cpu") -> dict:
-    """返回全部指标 dict；有 ref 时含 PSNR/SSIM，无 ref 时仅无参考指标。"""
+    """返回全部指标 dict；有 ref 时含 PSNR/SSIM，无 ref 时仅无参考指标。首次调用会联网下载 NIQE/BRISQUE/MUSIQ 权重。"""
     out = {}
     if ref is not None:
         out["psnr"] = psnr(pred, ref)
