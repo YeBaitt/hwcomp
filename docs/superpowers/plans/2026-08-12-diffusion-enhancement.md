@@ -175,13 +175,13 @@ version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml",
-    "numpy",
+    "numpy<2",                      # torch 2.2 基于 numpy 1.x 编译，numpy 2.x 触发 crash 警告
     "opencv-python",
     "scikit-image",
-    "torch",
+    "torch",                        # CUDA 版由 Task 1 Step 4 显式安装（cu121）
     "diffusers>=0.24,<0.30",
-    "transformers",
-    "accelerate",
+    "transformers>=4.31,<4.41",     # 5.x 要求 torch>=2.5，与 torch 2.2 冲突
+    "accelerate>=0.25,<0.34",
     "safetensors",
     "pyiqa",
     "pytest",
