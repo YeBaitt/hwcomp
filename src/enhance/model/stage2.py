@@ -88,7 +88,7 @@ def _refine_inproc(control_image: np.ndarray, steps: int, guidance: float,
         try:
             _pipeline = _build_pipeline()
             # 不再做内部 stage-1：直接把外部 NAFNet 输出作为 control 送入扩散
-            _pipeline.apply_cleaner = lambda self, lq, tiled, tile_size, tile_stride: lq
+            _pipeline.apply_cleaner = lambda lq, tiled, tile_size, tile_stride: lq
         finally:
             os.chdir(cwd)
     # pipeline.run() 内部: lq 是 (N,H,W,3) uint8 → tensor [0,1] → apply_cleaner → apply_cldm → wavelet_reconstruction
