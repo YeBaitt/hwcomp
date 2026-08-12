@@ -8,13 +8,13 @@ version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
     "pyyaml",
-    "numpy",
+    "numpy<2",
     "opencv-python",
     "scikit-image",
     "torch",
     "diffusers>=0.24,<0.30",
-    "transformers",
-    "accelerate",
+    "transformers>=4.31,<4.41",
+    "accelerate>=0.25,<0.34",
     "safetensors",
     "pyiqa",
     "pytest",

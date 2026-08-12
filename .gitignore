@@ -16,6 +16,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
 # 模型权重（大文件，下载/训练生成）
 *.safetensors
