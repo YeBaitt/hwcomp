@@ -622,14 +622,14 @@ Expected: FAIL with import error
 ```python
 # src/enhance/data/dataset.py
 """PatchDataset：2K/3.5K 混合采样 + 共享增强，返回 (input, target) 张量。"""
-import numpy as np
-import torch
 from pathlib import Path
-from torch.utils.data import Dataset
 from typing import Tuple
 
-from .pairs import find_pairs, load_lq_hr, to_same_res
+import numpy as np
+import torch
+from torch.utils.data import Dataset
 
+from .pairs import find_pairs, load_lq_hr, to_same_res
 
 def _shared_augment(lq: np.ndarray, hr: np.ndarray, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:
     if rng.random() < 0.5:
@@ -641,7 +641,6 @@ def _shared_augment(lq: np.ndarray, hr: np.ndarray, rng: np.random.Generator) ->
         lq, hr = np.rot90(lq, k), np.rot90(hr, k)
     return np.ascontiguousarray(lq), np.ascontiguousarray(hr)
 
-
 class EnhancementDataset(Dataset):
     def __init__(self, pairs_root: Path, patch_size: int = 256, kind_2k_weight: float = 0.7, seed: int = 42):
         self.pairs = find_pairs(pairs_root)
@@ -652,11 +651,8 @@ class EnhancementDataset(Dataset):
     def __len__(self):
         return max(64, len(self.pairs) * 64)
 
-    def _crop(self, img: np.ndarray) -> np.ndarray:
-        h, w = img.shape[:2]
-        ps = min(self.patch_size, h, w)
-        y = int(self.rng.integers(0, h - ps + 1))
-        x = int(self.rng.integers(0, w - ps + 1))
+    def _crop(self, img: np.ndarray, y: int, x: int, ps: int) -> np.ndarray:
+        """按给定裁剪位置取 ps×ps 子块（输入与目标必须用同一位置）。"""
         return img[y:y + ps, x:x + ps]
 
     def __getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -665,7 +661,11 @@ class EnhancementDataset(Dataset):
         kind = "2k" if self.rng.random() < self.kind_2k_weight else "35k"
         inp, target = to_same_res(lq, hr, kind)
         inp, target = _shared_augment(inp, target, self.rng)
-        inp, target = self._crop(inp), self._crop(target)
+        h, w = inp.shape[:2]
+        ps = min(self.patch_size, h, w)
+        y = int(self.rng.integers(0, h - ps + 1))
+        x = int(self.rng.integers(0, w - ps + 1))
+        inp, target = self._crop(inp, y, x, ps), self._crop(target, y, x, ps)
         inp_t = torch.from_numpy(inp.transpose(2, 0, 1)).float()
         target_t = torch.from_numpy(target.transpose(2, 0, 1)).float()
         return inp_t, target_t
