@@ -32,12 +32,12 @@ def load_lq_hr(pair: Pair) -> Tuple[np.ndarray, np.ndarray]:
     return lq, hr
 
 def to_same_res(lq: np.ndarray, hr: np.ndarray, kind: str) -> Tuple[np.ndarray, np.ndarray]:
-    """把 lq/hr 缩放到同一尺寸，返回 (input, target)：2k 取 lq 尺寸，35k 取 hr 尺寸。"""
+    """把 lq/hr 缩放到同一尺寸并裁剪到 [0,1]（消除 INTER_CUBIC ringing），返回 (input, target)：2k 取 lq 尺寸，35k 取 hr 尺寸。"""
     if kind == "2k":
-        target = cv2.resize(hr, (lq.shape[1], lq.shape[0]), interpolation=cv2.INTER_CUBIC)
+        target = np.clip(cv2.resize(hr, (lq.shape[1], lq.shape[0]), interpolation=cv2.INTER_CUBIC), 0.0, 1.0)
         return lq, target
     if kind == "35k":
-        inp = cv2.resize(lq, (hr.shape[1], hr.shape[0]), interpolation=cv2.INTER_CUBIC)
+        inp = np.clip(cv2.resize(lq, (hr.shape[1], hr.shape[0]), interpolation=cv2.INTER_CUBIC), 0.0, 1.0)
         return inp, hr
     raise ValueError(f"未知 kind: {kind}")
 
