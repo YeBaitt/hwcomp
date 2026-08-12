@@ -14,6 +14,7 @@ sys.path.insert(0, str(_VENDOR / "NAFNet"))
 
 def _build_model() -> torch.nn.Module:
     """构造 NAFNet width=64 SIDD 架构并移到 GPU。"""
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     model = NAFNet(img_channel=3, width=64, middle_blk_num=12,
@@ -51,6 +52,7 @@ def train_stage1(cfg: Config) -> Path:
     model.train()
     for epoch in range(cfg.stage1_epochs):
         total = 0.0
+        i = -1
         for i, (x, y) in enumerate(dl):
             x, y = x.cuda(), y.cuda()
             opt.zero_grad()

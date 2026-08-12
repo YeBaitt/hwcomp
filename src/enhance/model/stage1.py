@@ -3,11 +3,9 @@ import sys
 from pathlib import Path
 from typing import Tuple
 
-import numpy as np
 import torch
 
 _VENDOR = Path(__file__).resolve().parents[3] / "vendor"
-
 
 def load_nafnet(weights_path: str, device: str = "cuda", width: int = 64,
                 middle_blk_num: int = 12,
@@ -27,6 +25,7 @@ def load_nafnet(weights_path: str, device: str = "cuda", width: int = 64,
         eval 模式的 NAFNet 模型（已移到目标设备）。
     """
     sys.path.insert(0, str(_VENDOR / "NAFNet"))
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     model = NAFNet(img_channel=3, width=width, middle_blk_num=middle_blk_num,

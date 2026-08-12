@@ -15,10 +15,12 @@ def test_load_nafnet_tiny_arch(tmp_path):
     # 构造 tiny NAFNet 并保存其随机 state_dict
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vendor" / "NAFNet"))
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     ref = NAFNet(img_channel=3, width=4, middle_blk_num=1,
                  enc_blk_nums=[1, 1], dec_blk_nums=[1, 1])
+    ref = ref.to(device)
     torch.save({"state_dict": ref.state_dict()}, tiny_weights)
 
     # 通过 load_nafnet 加载
@@ -38,6 +40,10 @@ def test_load_nafnet_tiny_arch(tmp_path):
         y = model(x)
     assert y.shape == (1, 3, 64, 64)
 
+    # 验证权重加载正确性：同一输入的输出应与参考模型一致
+    with torch.no_grad():
+        assert torch.allclose(model(x), ref(x), atol=1e-5)
+
 
 def test_load_nafnet_params_key(tmp_path):
     """load_nafnet 应正确处理 params 键嵌套的 checkpoint（真实 NAFNet 保存格式）。"""
@@ -46,6 +52,7 @@ def test_load_nafnet_params_key(tmp_path):
 
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vendor" / "NAFNet"))
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     ref = NAFNet(img_channel=3, width=4, middle_blk_num=1,
@@ -54,6 +61,12 @@ def test_load_nafnet_params_key(tmp_path):
 
     model = load_nafnet(str(weights), device=device, width=4,
                         middle_blk_num=1, enc_blk_nums=(1, 1), dec_blk_nums=(1, 1))
+
+    assert not model.training
+    for p in model.parameters():
+        assert p.device.type == device
+        break
+
     x = torch.randn(1, 3, 32, 32).to(device)
     with torch.no_grad():
         y = model(x)
@@ -67,6 +80,7 @@ def test_load_nafnet_flat_state_dict(tmp_path):
 
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "vendor" / "NAFNet"))
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     ref = NAFNet(img_channel=3, width=4, middle_blk_num=1,
@@ -75,6 +89,12 @@ def test_load_nafnet_flat_state_dict(tmp_path):
 
     model = load_nafnet(str(weights), device=device, width=4,
                         middle_blk_num=1, enc_blk_nums=(1, 1), dec_blk_nums=(1, 1))
+
+    assert not model.training
+    for p in model.parameters():
+        assert p.device.type == device
+        break
+
     x = torch.randn(1, 3, 32, 32).to(device)
     with torch.no_grad():
         y = model(x)
@@ -89,6 +109,7 @@ def test_load_nafnet_default_params():
 
     # 用一个临时文件保存随机权重
     import tempfile
+    # 延迟导入：sys.path 须先指向 vendor/NAFNet
     from basicsr.models.archs.NAFNet_arch import NAFNet
 
     ref = NAFNet(img_channel=3, width=64, middle_blk_num=12,
