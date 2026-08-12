@@ -1631,7 +1631,6 @@ git commit -m "feat: 4K 增强推理引擎与端到端冒烟"
 """在 5 对 val 上网格搜索 (λ, α)，输出 CSV。只在 val 上调参。"""
 import csv
 import sys
-import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -1655,10 +1654,10 @@ def main():
         lq = cv2.cvtColor(cv2.imread(str(vdir / lq_name)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
         gt = cv2.cvtColor(cv2.imread(str(vdir / gt_name)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
         imgs[name] = (lq, gt)
-    # 每个 val 图先跑一次 stage1+stage2，缓存，避免重复推理
-    tmp = Path(tempfile.mkdtemp())
+    # 每个 val 图先跑一次 stage1+stage2（整图路径，引擎 _stage2 内部 cldm_tiled 平铺），
+    # 缓存，避免对每个 (λ,α) 组合重复跑扩散
     s1 = {n: engine._stage1(lq) for n, (lq, _) in imgs.items()}
-    base = {n: engine._stage2_tiled(s1[n], tmp) for n in imgs}
+    base = {n: engine._stage2(s1[n]) for n in imgs}
     rows = []
     for lam in [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]:
         for alpha in [0.0, 0.3, 0.5]:
@@ -1679,6 +1678,8 @@ def main():
     print("写至", out_csv)
     print("最优 PSNR 行:", max(rows, key=lambda r: r["psnr"]))
 
+```
+> 注意：**禁止**用 `engine._stage2_tiled` 跑网格（每张 4K 图会触发约 60 次进程内逐块采样，数小时级）。必须用引擎的整图 `_stage2`（内部 cldm_tiled 4K 平铺，Task 10 已从 `enhance()` 抽出该方法）：每张 val 图只跑一次 stage1+stage2 并缓存，网格内仅做廉价的 `apply_knobs` 重组。`report` 默认 device="cpu"（NIQE/BRISQUE 等 pyiqa 首次调用会联网下载权重，需 `HF_ENDPOINT=https://hf-mirror.com`）。
 
 if __name__ == "__main__":
     main()
