@@ -875,7 +875,7 @@ def test_stitch_reconstructs_constant():
         accumulate_tile(canvas, ws, rect, img[y0:y1, x0:x1], w)
     out = finalize(canvas, ws)
     assert np.abs(out - 0.7).max() < 1e-4
-    assert np.abs(out).max() == 0.7  # 无 NaN/越界
+    assert np.isfinite(out).all()  # 无 NaN/Inf
 
 
 def test_tile_weights_boundary_one():
@@ -936,9 +936,9 @@ Expected: FAIL with import error
 ```python
 # src/enhance/inference/tiler.py
 """4K 分块与重叠加权融合（像素域，partition-of-unity）。"""
-import numpy as np
 from typing import List, Tuple
 
+import numpy as np
 
 def tiles_for(height: int, width: int, tile_size: int, overlap: int) -> List[Tuple[int, int, int, int]]:
     """固定步长铺块，最后一块对齐图像边缘；返回 (y0,y1,x0,x1) 列表。"""
@@ -999,10 +999,10 @@ def finalize(canvas: np.ndarray, weight_sum: np.ndarray) -> np.ndarray:
 ```python
 # src/enhance/fusion/knobs.py
 """可控融合旋钮：λ 混合 + 高频残差回注。"""
-import cv2
-import numpy as np
 from dataclasses import dataclass
 
+import cv2
+import numpy as np
 
 @dataclass
 class KnobConfig:
