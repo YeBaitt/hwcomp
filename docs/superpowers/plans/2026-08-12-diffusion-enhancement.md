@@ -1521,10 +1521,16 @@ class EnhancementEngine:
             self._stage1_model = load_nafnet(str(self._stage1_ckpt()), self.device)
         x = torch.from_numpy(img.transpose(2, 0, 1))[None].to(self.device)
         with torch.no_grad():
-            y = self._stage1_model(x)
-        return y[0].permute(1, 2, 0).cpu().numpy()
+            if self.device.startswith("cuda"):
+                with torch.autocast("cuda", dtype=torch.float16):  # 4K 前向 fp16 省显存
+                    y = self._stage1_model(x)
+            else:
+                y = self._stage1_model(x)
+        # NAFNet 输出是残差（可越界），作为 stage2 控制图与旋钮输入前必须裁剪到 [0,1]
+        return np.clip(y[0].permute(1, 2, 0).float().cpu().numpy(), 0.0, 1.0)
 
     def _stage2_tiled(self, img: np.ndarray, tmp: Path) -> np.ndarray:
+        """逐块 stage2（保底）：分块 → 每块 stage2_refine → 分区缝合。整图路径失败时退回。"""
         h, w = img.shape[:2]
         canvas = np.zeros_like(img)
         ws = np.zeros((h, w), dtype=np.float32)
@@ -1541,7 +1547,14 @@ class EnhancementEngine:
     def enhance(self, img: np.ndarray) -> np.ndarray:
         tmp = Path(tempfile.mkdtemp())
         s1 = self._stage1(img)
-        d = self._stage2_tiled(s1, tmp)
+        # 首选整图一次 stage2_refine：其内部走 cldm_tiled 4K 平铺（DiffBIR 自带重叠平铺），
+        # 避免逐块启动子进程的分钟级开销。整图失败则退回逐块缝合路径。
+        try:
+            d = stage2_refine(s1, tmp / "stage2.png", steps=self.cfg.steps, guidance=self.knobs.w,
+                              tile_size=self.cfg.tile_size, stride=self.cfg.tile_size - self.cfg.overlap)
+        except Exception as exc:
+            print(f"整图 stage2 失败（{type(exc).__name__}: {exc}），退回逐块路径")
+            d = self._stage2_tiled(s1, tmp)
         return apply_knobs(s1, d, img, self.knobs)
 
     def enhance_path(self, in_path: Path, out_path: Path) -> None:
@@ -1551,7 +1564,7 @@ class EnhancementEngine:
         out_bgr = cv2.cvtColor((out * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
         cv2.imwrite(str(out_path), out_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
 ```
-> 注意：`enhance()` 对每块调用一次 `stage2_refine`（每次起 subprocess 很慢）。**性能优化（必须）**：将 stage2 改为 Python API 批处理（Task 9 的升级路径）；若仍用 subprocess，应把整张图一次传给 CLI（`--tiled`），而不是逐块调用。上方的逐块实现仅作为可运行的保底，正式跑 100 张前必须换用批处理路径（见 Task 12 的性能清单）。
+> 注意：**性能约束（必须）**：默认路径是整图一次 `stage2_refine`（内部走 DiffBIR 的 `cldm_tiled` 4K 重叠平铺，进程内完成）；**禁止**逐块启动子进程（每块一次 CLI 调用约 47 分钟/张）。`_stage2_tiled` 逐块路径仅作整图失败时的保底，保留可运行即可。`stage2_refine` 内部须将输入 pad 到 ≥512（DiffBIR `assert cond ≥512`）。`_stage1` 输出必须 `np.clip` 到 [0,1]（NAFNet 输出未裁剪的残差，作 stage2 控制图与旋钮输入前必须归一化）。
 
 - [ ] **Step 2: 冒烟脚本**
 
