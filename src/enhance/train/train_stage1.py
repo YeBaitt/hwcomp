@@ -11,7 +11,6 @@ from enhance.data.dataset import EnhancementDataset
 _VENDOR = Path(__file__).resolve().parents[3] / "vendor"
 sys.path.insert(0, str(_VENDOR / "NAFNet"))
 
-
 def _build_model() -> torch.nn.Module:
     """构造 NAFNet width=64 SIDD 架构并移到 GPU。"""
     # 延迟导入：sys.path 须先指向 vendor/NAFNet
