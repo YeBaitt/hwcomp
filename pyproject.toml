@@ -22,3 +22,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "--gpu"  # 本项目运行在有 GPU 的机器上，默认开 GPU
+markers = ["gpu: 需要 GPU 的测试"]
