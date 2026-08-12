@@ -755,11 +755,11 @@ Expected: FAIL with import error
 ```python
 # src/enhance/evaluate/metrics.py
 """图像质量指标：PSNR/SSIM 纯实现，LPIPS/NIQE/BRISQUE/MUSIQ 用 pyiqa 惰性加载。"""
+from typing import Optional
+
 import numpy as np
 import torch
 from skimage.metrics import structural_similarity
-from typing import Optional
-
 
 def psnr(pred: np.ndarray, ref: np.ndarray, max_val: float = 1.0) -> float:
     pred = np.asarray(pred, dtype=np.float64)
