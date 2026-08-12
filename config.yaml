@@ -10,11 +10,11 @@ output:
   zip_path: my_work.zip
 training:
   patch_size: 256
-  batch_size: 8
+  batch_size: 2
   num_workers: 4
   seed: 42
   kind_2k_weight: 0.7
-  stage1_epochs: 150
+  stage1_epochs: 30
 inference:
   tile_size: 512
   overlap: 128
@@ -23,7 +23,7 @@ inference:
   batch_tiles: 8
   use_tta: false
 model:
-  stage1_pretrained: vendor/NAFNet/weights/sidd.pth
+  stage1_pretrained: vendor/NAFNet/weights/NAFNet-SIDD-width64.pth
 knobs:
   lam: 0.3
   n: 0.15

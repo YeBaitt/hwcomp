@@ -73,19 +73,13 @@ echo ""
 
 # ---------- NAFNet 权重 ----------
 # NAFNet-SIDD-width64 (图像去噪，宽度64，PSNR 40.30)
-# 来源: Google Drive (megvii-research/NAFNet README)
-# 注意：Google Drive 在中国大陆可能无法直接访问，请手动下载或使用代理
+# 来源: megvii-research/NAFNet，通过 HF 镜像下载
 echo "=== NAFNet 权重 ==="
 NAFNET_SIDD_W64="${NAFNET_WEIGHTS}/NAFNet-SIDD-width64.pth"
 
-if [ -f "${NAFNET_SIDD_W64}" ]; then
-    echo "[SKIP] NAFNet-SIDD-width64.pth 已存在，跳过下载"
-else
-    echo "[INFO] NAFNet-SIDD-width64 需要从 Google Drive 下载:"
-    echo "  URL: https://drive.google.com/file/d/14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR/view"
-    echo "  请手动下载后放入: ${NAFNET_SIDD_W64}"
-    echo "  或使用 gdown: pip install gdown && gdown 14Fht1QQJ2gMlk4N1ERCRuElg8JfjrWWR -O ${NAFNET_SIDD_W64}"
-fi
+download_if_missing \
+    "https://huggingface.co/mikestealth/nafnet-models/resolve/main/NAFNet-SIDD-width64.pth" \
+    "${NAFNET_SIDD_W64}"
 
 # NAFNet-GoPro-width64 (图像去模糊，宽度64，PSNR 33.71)
 NAFNET_GOPRO_W64="${NAFNET_WEIGHTS}/NAFNet-GoPro-width64.pth"
