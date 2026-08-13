@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 from enhance.config import Config
 from enhance.data.dataset import EnhancementDataset, load_pair_float
-from enhance.data.pairs import find_pairs
+from enhance.data.pairs import find_pairs, to_same_res
 
 _VENDOR = Path(__file__).resolve().parents[3] / "vendor"
 sys.path.insert(0, str(_VENDOR / "NAFNet"))
@@ -29,6 +29,20 @@ def _psnr(pred: np.ndarray, ref: np.ndarray) -> float:
         return float("inf")
     return float(10.0 * np.log10(1.0 / mse))
 
+def _make_scheduler(opt: torch.optim.Optimizer, warmup_epochs: int, stage1_epochs: int):
+    """构造 warmup(LinearLR) + cosine(CosineAnnealingLR) 的 SequentialLR 调度器。"""
+    warmup = torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.05, total_iters=warmup_epochs)
+    cosine = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, stage1_epochs - warmup_epochs))
+    return torch.optim.lr_scheduler.SequentialLR(opt, schedulers=[warmup, cosine],
+                                                 milestones=[warmup_epochs])
+
+def _early_stop_step(val_psnr: float, best_psnr: float, patience: int, patience_limit: int) -> tuple:
+    """根据本次验证 PSNR 更新早停状态，返回 (新最优值, 新耐心, 是否新最优, 是否应早停)。"""
+    if val_psnr > best_psnr:
+        return val_psnr, 0, True, False
+    patience += 1
+    return best_psnr, patience, False, patience >= patience_limit
+
 @torch.no_grad()
 def _eval_val(model: torch.nn.Module, val_ds: EnhancementDataset, patch_size: int) -> float:
     """在验证集上计算中心裁剪 patch 的平均 PSNR（fp16 评估，确定性与可复现）。"""
@@ -36,13 +50,15 @@ def _eval_val(model: torch.nn.Module, val_ds: EnhancementDataset, patch_size: in
     model.eval()
     scores = []
     for pair in val_ds.pairs:
-        lq, hr = load_pair_float(pair, val_ds.cache_root)
-        h, w = lq.shape[:2]
+        lq, hr = load_pair_float(pair, val_ds.cache_root, val_ds.pairs_root)
+        # 目标先对齐到 lq 分辨率，再同位置裁剪，保证输出与目标空间对应、PSNR 有意义
+        inp, tgt = to_same_res(lq, hr, "2k")
+        h, w = inp.shape[:2]
         ps = min(patch_size, h, w)
         y = (h - ps) // 2
         x = (w - ps) // 2
-        inp = lq[y:y + ps, x:x + ps]
-        tgt = hr[y:y + ps, x:x + ps]
+        inp = inp[y:y + ps, x:x + ps]
+        tgt = tgt[y:y + ps, x:x + ps]
         xt = torch.from_numpy(inp.transpose(2, 0, 1)).float().unsqueeze(0).to(device)
         with torch.cuda.amp.autocast():
             out = model(xt)
@@ -88,10 +104,7 @@ def train_stage1(cfg: Config) -> Path:
         print("[stage1] 未找到预训练权重，随机初始化")
 
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4)
-    warmup = torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.05, total_iters=cfg.warmup_epochs)
-    cosine = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, cfg.stage1_epochs - cfg.warmup_epochs))
-    sched = torch.optim.lr_scheduler.SequentialLR(opt, schedulers=[warmup, cosine],
-                                                  milestones=[cfg.warmup_epochs])
+    sched = _make_scheduler(opt, cfg.warmup_epochs, cfg.stage1_epochs)
 
     ckpt_path = cfg.ckpt_root / "stage1_best.pth"
     best_psnr = -1.0
@@ -116,17 +129,15 @@ def train_stage1(cfg: Config) -> Path:
         print(f"epoch {epoch} avg_loss {avg_loss:.4f} val_psnr {val_psnr:.3f}")
 
         # 早停：验证 PSNR 无提升则累计耐心，超阈值提前结束
-        if val_psnr > best_psnr:
-            best_psnr = val_psnr
-            patience = 0
+        best_psnr, patience, is_new_best, should_stop = _early_stop_step(
+            val_psnr, best_psnr, patience, cfg.early_stop_patience)
+        if is_new_best:
             ckpt_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save({"state_dict": model.state_dict()}, ckpt_path)
             print(f"[stage1] 新最优 val_psnr={val_psnr:.3f}，已保存 {ckpt_path}")
-        else:
-            patience += 1
-            if patience >= cfg.early_stop_patience:
-                print(f"[stage1] 早停：连续 {cfg.early_stop_patience} 个 epoch 无提升")
-                break
+        if should_stop:
+            print(f"[stage1] 早停：连续 {cfg.early_stop_patience} 个 epoch 无提升")
+            break
 
     return ckpt_path
 

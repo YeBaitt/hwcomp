@@ -23,6 +23,11 @@ def find_pairs(root: Path) -> list:
             pairs.append(Pair(lq_path=lq, hr_path=gt))
     return pairs
 
+def npz_cache_key(pair: Pair, pairs_root: Path) -> str:
+    """生成 npz 缓存键：lq 相对 pairs_root 的路径（去扩展名、分隔符转 __），避免跨子目录同名冲突。"""
+    rel = pair.lq_path.relative_to(pairs_root)
+    return rel.with_suffix("").as_posix().replace("/", "__")
+
 def load_lq_hr(pair: Pair) -> Tuple[np.ndarray, np.ndarray]:
     """读取一对图像为 RGB float32 数组，范围 [0,1]，返回 (lq, hr)。"""
     lq = cv2.imread(str(pair.lq_path))

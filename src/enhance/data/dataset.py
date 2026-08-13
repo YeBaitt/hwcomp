@@ -7,14 +7,16 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .pairs import Pair, find_pairs, load_lq_hr, to_same_res
+from .pairs import Pair, find_pairs, load_lq_hr, npz_cache_key, to_same_res
 
 MAX_CACHED_PAIRS = 256
 
-def load_pair_float(pair: Pair, cache_root: Optional[Path] = None) -> Tuple[np.ndarray, np.ndarray]:
+def load_pair_float(pair: Pair, cache_root: Optional[Path] = None,
+                    pairs_root: Optional[Path] = None) -> Tuple[np.ndarray, np.ndarray]:
     """加载一对图像为 float32 [0,1]：优先读 npz uint8 缓存，否则解码 PNG。"""
     if cache_root is not None:
-        cache_file = cache_root / f"{pair.lq_path.stem}.npz"
+        key = npz_cache_key(pair, pairs_root) if pairs_root is not None else pair.lq_path.stem
+        cache_file = cache_root / f"{key}.npz"
         if cache_file.exists():
             data = np.load(cache_file)
             lq = data["lq"].astype(np.float32) / 255.0
@@ -51,9 +53,10 @@ class EnhancementDataset(Dataset):
     """2K/3.5K 混合采样数据集：随机取一对图像，共享增强后同位置裁剪出 patch 张量。
 
     内置两级 LRU 有界缓存：_decode_cache 缓存解码后的 float32 原图，
-    _res_cache 缓存 to_same_res 输出。缓存条目数受 cache_pairs 限制，
-    内存占用有上界、不随图像对数量增长而 OOM；也可通过 cache_root 读取预解压
-    的 uint8 npz 以加速解码。
+    _res_cache 缓存 to_same_res 输出。缓存按“图像对数量”限制（cache_pairs），
+    而非按字节数：每个条目是整幅 float32 图像（解码约 119MB 起、35k 重采样约 190MB），
+    因此峰值内存约为 cache_pairs × 单对平均字节数（如 128 对可达数十 GB），
+    但上界不随图像对总数增长而 OOM；也可通过 cache_root 读取预解压的 uint8 npz 加速解码。
     """
 
     def __init__(self, pairs_root: Path, patch_size: int = 256, kind_2k_weight: float = 0.7,
@@ -62,9 +65,10 @@ class EnhancementDataset(Dataset):
         """扫描 pairs_root 下图像对，并记录采样参数与随机数生成器。
 
         length_factor 控制每对图像生成的样本数，默认 64（保证全测试兼容）。
-        cache_pairs 限制内存中缓存的最大图像对数；cache_root 指向预解压 npz 缓存目录。
+        cache_pairs 限制内存中缓存的最大图像对数（按对数计，非字节数）；cache_root 指向预解压 npz 缓存目录。
         pairs 可显式指定子集（如训练/验证划分），默认扫描全部。
         """
+        self.pairs_root = pairs_root
         self.pairs = pairs if pairs is not None else find_pairs(pairs_root)
         if not self.pairs:
             raise ValueError(f"目录下未找到图像对: {pairs_root}")
@@ -93,7 +97,7 @@ class EnhancementDataset(Dataset):
         # 一级缓存：解码后的 float32 原图（LRU 有界）
         decoded = _lru_get(self._decode_cache, pair_idx)
         if decoded is None:
-            decoded = load_pair_float(self.pairs[pair_idx], self.cache_root)
+            decoded = load_pair_float(self.pairs[pair_idx], self.cache_root, self.pairs_root)
             _lru_put(self._decode_cache, pair_idx, decoded, self._cache_pairs)
         lq, hr = decoded
 

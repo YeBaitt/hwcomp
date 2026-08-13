@@ -8,16 +8,16 @@ import cv2
 import numpy as np
 
 from .dataset import load_pair_float
-from .pairs import Pair, find_pairs, load_lq_hr
+from .pairs import Pair, find_pairs, load_lq_hr, npz_cache_key
 from .profile import estimate_profile
 
-def _cache_one(args: Tuple[Pair, Path]) -> int:
+def _cache_one(args: Tuple[Pair, Path, Path]) -> int:
     """解码一对图像并保存为 uint8 npz，返回新增对数（恒为 1）。"""
-    pair, cache_root = args
+    pair, pairs_root, cache_root = args
     lq, hr = load_lq_hr(pair)
     lq_u8 = (np.clip(lq, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
     hr_u8 = (np.clip(hr, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
-    out = cache_root / f"{pair.lq_path.stem}.npz"
+    out = cache_root / f"{npz_cache_key(pair, pairs_root)}.npz"
     np.savez(str(out), lq=lq_u8, hr=hr_u8)
     return 1
 
@@ -30,8 +30,8 @@ def build_pair_cache(pairs_root: Path, cache_root: Path, num_workers: int = 4) -
     if not pairs:
         return 0
     cache_root.mkdir(parents=True, exist_ok=True)
-    todo = [(pair, cache_root) for pair in pairs
-            if not (cache_root / f"{pair.lq_path.stem}.npz").exists()]
+    todo = [(pair, pairs_root, cache_root) for pair in pairs
+            if not (cache_root / f"{npz_cache_key(pair, pairs_root)}.npz").exists()]
     if not todo:
         return 0
     if num_workers <= 1:
@@ -42,8 +42,9 @@ def build_pair_cache(pairs_root: Path, cache_root: Path, num_workers: int = 4) -
 def check_color_consistency(pairs_root: Path, cache_root: Path, sample_n: int = 50) -> None:
     """色彩一致性快检：抽样估计逐对增益/偏移，报告均值并标记可疑对。
 
-    对每对图像用最小二乘估计 LQ→GT 逐通道增益/偏移（同 profile.estimate_profile），
-    增益超出 [0.5, 2.0] 或偏移超出 [-0.2, 0.2] 的对标记为可疑。
+    对每对图像先用双三次把 HR 缩到 LQ 分辨率，再用最小二乘估计 LQ→GT 逐通道
+    增益/偏移（同 profile.estimate_profile）；增益超出 [0.5, 2.0] 或偏移超出
+    [-0.2, 0.2] 的对标记为可疑。
     """
     pairs = find_pairs(pairs_root)
     if not pairs:
@@ -56,14 +57,15 @@ def check_color_consistency(pairs_root: Path, cache_root: Path, sample_n: int = 
     suspicious = []
     for i in idx:
         pair = pairs[int(i)]
-        lq, hr = load_pair_float(pair, cache_root)
+        lq, hr = load_pair_float(pair, cache_root, pairs_root)
+        hr = cv2.resize(hr, (lq.shape[1], lq.shape[0]))
         p = estimate_profile(lq, hr)
         gain_abs.append(np.abs(p.color_gain - 1.0))
         off_abs.append(np.abs(p.color_offset))
         bad = bool(np.any((p.color_gain < 0.5) | (p.color_gain > 2.0))
                    or np.any((p.color_offset < -0.2) | (p.color_offset > 0.2)))
         if bad:
-            suspicious.append((pair.lq_path.stem, p.color_gain, p.color_offset))
+            suspicious.append((npz_cache_key(pair, pairs_root), p.color_gain, p.color_offset))
     print(f"[色彩快检] 抽样 {len(idx)} 对，mean|gain-1|={float(np.mean(gain_abs)):.4f} "
           f"mean|offset|={float(np.mean(off_abs)):.4f}")
     if suspicious:

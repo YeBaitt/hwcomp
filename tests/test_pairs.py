@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
-from enhance.data.pairs import find_pairs, to_same_res
+from enhance.data.pairs import Pair, find_pairs, npz_cache_key, to_same_res
 
 def _img(h, w):
     yy, xx = np.mgrid[0:h, 0:w]
@@ -39,3 +39,8 @@ def test_find_pairs(tmp_path):
     (tmp_path / "lonely.png").write_bytes(b"x")
     pairs = find_pairs(tmp_path)
     assert len(pairs) == 3
+
+def test_npz_cache_key_relative(tmp_path):
+    # 缓存键取 lq 相对 pairs_root 的路径（去扩展名、分隔符转 __），跨子目录同名不冲突
+    pair = Pair(lq_path=tmp_path / "sub" / "a_ARC.png", hr_path=tmp_path / "sub" / "a_ARC_gt.png")
+    assert npz_cache_key(pair, tmp_path) == "sub__a_ARC"
