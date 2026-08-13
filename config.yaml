@@ -9,12 +9,17 @@ output:
   submit_dir: output_dir
   zip_path: my_work.zip
 training:
-  patch_size: 256
-  batch_size: 2
+  patch_size: 384
+  batch_size: 4
   num_workers: 4
   seed: 42
   kind_2k_weight: 0.7
-  stage1_epochs: 30
+  stage1_epochs: 60
+  warmup_epochs: 3
+  early_stop_patience: 8
+  val_holdout_n: 10
+  cache_root: dataset/ImagePairs/cache
+  cache_pairs: 128
 inference:
   tile_size: 512
   overlap: 128

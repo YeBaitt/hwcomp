@@ -1,12 +1,26 @@
 """PatchDataset：2K/3.5K 混合采样 + 共享增强，返回 (input, target) 张量。"""
+from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from .pairs import find_pairs, load_lq_hr, to_same_res
+from .pairs import Pair, find_pairs, load_lq_hr, to_same_res
+
+MAX_CACHED_PAIRS = 256
+
+def load_pair_float(pair: Pair, cache_root: Optional[Path] = None) -> Tuple[np.ndarray, np.ndarray]:
+    """加载一对图像为 float32 [0,1]：优先读 npz uint8 缓存，否则解码 PNG。"""
+    if cache_root is not None:
+        cache_file = cache_root / f"{pair.lq_path.stem}.npz"
+        if cache_file.exists():
+            data = np.load(cache_file)
+            lq = data["lq"].astype(np.float32) / 255.0
+            hr = data["hr"].astype(np.float32) / 255.0
+            return lq, hr
+    return load_lq_hr(pair)
 
 def _shared_augment(lq: np.ndarray, hr: np.ndarray, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:
     """对 lq/hr 施加同一随机几何变换（翻转/90° 旋转），返回连续数组。"""
@@ -19,30 +33,49 @@ def _shared_augment(lq: np.ndarray, hr: np.ndarray, rng: np.random.Generator) ->
         lq, hr = np.rot90(lq, k), np.rot90(hr, k)
     return np.ascontiguousarray(lq), np.ascontiguousarray(hr)
 
+def _lru_get(cache: "OrderedDict", key) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """命中则移到队尾并返回，否则返回 None。"""
+    if key not in cache:
+        return None
+    cache.move_to_end(key)
+    return cache[key]
+
+def _lru_put(cache: "OrderedDict", key, value, budget: int) -> None:
+    """写入 LRU 缓存并在条目数超出 budget 时淘汰最久未使用项。"""
+    cache[key] = value
+    cache.move_to_end(key)
+    while len(cache) > budget:
+        cache.popitem(last=False)
+
 class EnhancementDataset(Dataset):
     """2K/3.5K 混合采样数据集：随机取一对图像，共享增强后同位置裁剪出 patch 张量。
 
-    内置两级惰性缓存以加速训练：_decode_cache 缓存解码后的 float32 原图，
-    _res_cache 缓存每对图像在不同 kind 下的 to_same_res 输出。
-    78 对图像总缓存约 14 GiB，在 125GB RAM 环境下可全部容纳。
+    内置两级 LRU 有界缓存：_decode_cache 缓存解码后的 float32 原图，
+    _res_cache 缓存 to_same_res 输出。缓存条目数受 cache_pairs 限制，
+    内存占用有上界、不随图像对数量增长而 OOM；也可通过 cache_root 读取预解压
+    的 uint8 npz 以加速解码。
     """
 
     def __init__(self, pairs_root: Path, patch_size: int = 256, kind_2k_weight: float = 0.7,
-                 seed: int = 42, length_factor: int = 64):
+                 seed: int = 42, length_factor: int = 64, cache_pairs: int = MAX_CACHED_PAIRS,
+                 cache_root: Optional[Path] = None, pairs: Optional[List[Pair]] = None):
         """扫描 pairs_root 下图像对，并记录采样参数与随机数生成器。
 
-        length_factor 控制每对图像生成的样本数，默认 64（保证全测试兼容）；
-        训练时可按需设更小值以加速 epoch。
+        length_factor 控制每对图像生成的样本数，默认 64（保证全测试兼容）。
+        cache_pairs 限制内存中缓存的最大图像对数；cache_root 指向预解压 npz 缓存目录。
+        pairs 可显式指定子集（如训练/验证划分），默认扫描全部。
         """
-        self.pairs = find_pairs(pairs_root)
+        self.pairs = pairs if pairs is not None else find_pairs(pairs_root)
         if not self.pairs:
             raise ValueError(f"目录下未找到图像对: {pairs_root}")
         self.patch_size = patch_size
         self.kind_2k_weight = kind_2k_weight
         self.rng = np.random.default_rng(seed)
         self._length_factor = length_factor
-        self._decode_cache: Dict[int, Tuple[np.ndarray, np.ndarray]] = {}
-        self._res_cache: Dict[Tuple[int, str], Tuple[np.ndarray, np.ndarray]] = {}
+        self._cache_pairs = cache_pairs
+        self.cache_root = cache_root
+        self._decode_cache: "OrderedDict[int, Tuple[np.ndarray, np.ndarray]]" = OrderedDict()
+        self._res_cache: "OrderedDict[Tuple[int, str], Tuple[np.ndarray, np.ndarray]]" = OrderedDict()
 
     def __len__(self):
         """返回数据集长度（至少 64，随图像对数量线性增长）。"""
@@ -57,17 +90,20 @@ class EnhancementDataset(Dataset):
         pair_idx = idx % len(self.pairs)
         kind = "2k" if self.rng.random() < self.kind_2k_weight else "35k"
 
-        # 一级缓存：解码后的 float32 原图
-        if pair_idx not in self._decode_cache:
-            pair = self.pairs[pair_idx]
-            self._decode_cache[pair_idx] = load_lq_hr(pair)
-        lq, hr = self._decode_cache[pair_idx]
+        # 一级缓存：解码后的 float32 原图（LRU 有界）
+        decoded = _lru_get(self._decode_cache, pair_idx)
+        if decoded is None:
+            decoded = load_pair_float(self.pairs[pair_idx], self.cache_root)
+            _lru_put(self._decode_cache, pair_idx, decoded, self._cache_pairs)
+        lq, hr = decoded
 
-        # 二级缓存：to_same_res 输出（2k/35k 两种分辨率）
+        # 二级缓存：to_same_res 输出（2k/35k 两种分辨率，LRU 有界）
         cache_key = (pair_idx, kind)
-        if cache_key not in self._res_cache:
-            self._res_cache[cache_key] = to_same_res(lq, hr, kind)
-        inp, target = self._res_cache[cache_key]
+        res = _lru_get(self._res_cache, cache_key)
+        if res is None:
+            res = to_same_res(lq, hr, kind)
+            _lru_put(self._res_cache, cache_key, res, self._cache_pairs * 2)
+        inp, target = res
 
         inp, target = _shared_augment(inp, target, self.rng)
         h, w = inp.shape[:2]

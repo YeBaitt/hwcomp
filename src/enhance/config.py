@@ -32,6 +32,11 @@ class Config:
     n: float
     w: float
     alpha: float
+    warmup_epochs: int = 3
+    early_stop_patience: int = 8
+    val_holdout_n: int = 10
+    cache_root: Path = Path("dataset/ImagePairs/cache")
+    cache_pairs: int = 128
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
@@ -65,6 +70,11 @@ class Config:
             n=d["knobs"]["n"],
             w=d["knobs"]["w"],
             alpha=d["knobs"]["alpha"],
+            warmup_epochs=int(d["training"].get("warmup_epochs", 3)),
+            early_stop_patience=int(d["training"].get("early_stop_patience", 8)),
+            val_holdout_n=int(d["training"].get("val_holdout_n", 10)),
+            cache_root=Path(d["training"].get("cache_root", "dataset/ImagePairs/cache")),
+            cache_pairs=int(d["training"].get("cache_pairs", 128)),
         )
 
 if __name__ == "__main__":
