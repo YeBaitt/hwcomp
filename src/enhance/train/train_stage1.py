@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 from enhance.config import Config
 from enhance.data.dataset import EnhancementDataset, load_pair_float
-from enhance.data.pairs import find_pairs, to_same_res
+from enhance.data.pairs import find_pairs, npz_cache_key, to_same_res
 
 _VENDOR = Path(__file__).resolve().parents[3] / "vendor"
 sys.path.insert(0, str(_VENDOR / "NAFNet"))
@@ -76,6 +76,13 @@ def train_stage1(cfg: Config) -> Path:
     """
     # 划分训练/验证：find_pairs 已排序，前 val_holdout_n 对作为验证集（确定性）
     all_pairs = find_pairs(cfg.image_pairs_train_dir)
+    pairs_root = Path(cfg.image_pairs_train_dir)
+    bad_file = pairs_root.parent / "bad_pairs.txt"
+    if bad_file.exists():
+        bad_keys = {line.strip() for line in bad_file.read_text(encoding="utf-8").splitlines() if line.strip()}
+        before = len(all_pairs)
+        all_pairs = [p for p in all_pairs if npz_cache_key(p, pairs_root) not in bad_keys]
+        print(f"[stage1] 排除损坏对 {before - len(all_pairs)} 对（来自 bad_pairs.txt）")
     val_n = min(cfg.val_holdout_n, max(0, len(all_pairs) - 1))
     val_pairs = all_pairs[:val_n]
     train_pairs = all_pairs[val_n:]

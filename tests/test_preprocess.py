@@ -1,7 +1,11 @@
 import cv2
 import numpy as np
 
-from enhance.data.preprocess import build_pair_cache, check_color_consistency
+from enhance.data.preprocess import (
+    build_pair_cache,
+    check_color_consistency,
+    verify_pairs,
+)
 
 def _write_pair(root, name, gain=1.0, off=0.0):
     yy, xx = np.mgrid[0:32, 0:48]
@@ -80,3 +84,38 @@ def test_build_pair_cache_subdir_key(tmp_path):
     assert build_pair_cache(root, cache, num_workers=1) == 2
     assert (cache / "sub1__a_ARC.npz").exists()
     assert (cache / "sub2__a_ARC.npz").exists()
+
+def test_verify_pairs_detects_missing(tmp_path):
+    # 一对正常、一对 lq 损坏（imread 返回 None → 视为缺失）：verify_pairs 应只返回坏键
+    root = tmp_path / "pairs"
+    root.mkdir()
+    _write_pair(root, "good")
+    _write_pair(root, "bad")
+    (root / "bad_ARC.png").write_bytes(b"not a real image")
+    bad = verify_pairs(root, num_workers=1)
+    assert bad == ["bad_ARC"]
+    assert "good_ARC" not in bad
+    assert (tmp_path / "bad_pairs.txt").read_text(encoding="utf-8") == "bad_ARC\n"
+
+def test_build_pair_cache_skips_bad(tmp_path):
+    # bad_pairs.txt 里登记坏对后，build_pair_cache 只缓存好对
+    root = tmp_path / "pairs"
+    cache = tmp_path / "cache"
+    root.mkdir()
+    _write_pair(root, "good")
+    _write_pair(root, "bad")
+    (root / "bad_ARC.png").write_bytes(b"not a real image")
+    (tmp_path / "bad_pairs.txt").write_text("bad_ARC\n", encoding="utf-8")
+    assert build_pair_cache(root, cache, num_workers=1) == 1
+    assert (cache / "good_ARC.npz").exists()
+    assert not (cache / "bad_ARC.npz").exists()
+
+def test_cache_one_does_not_crash_on_corrupt(tmp_path):
+    # gt 损坏（lq 正常）时 build_pair_cache 不应抛异常，返回 0 且无 npz
+    root = tmp_path / "pairs"
+    cache = tmp_path / "cache"
+    root.mkdir()
+    _write_pair(root, "a")
+    (root / "a_ARC_gt.png").write_bytes(b"not a real image")
+    assert build_pair_cache(root, cache, num_workers=1) == 0
+    assert not (cache / "a_ARC.npz").exists()
