@@ -1,0 +1,121 @@
+# Stage-2 fine-tune (DIV8K v2)：条件 = NAFNet stage1 输出（对齐部署），目标 = 干净 gt。
+# 数据 = div8k_syn（DIV8K 全量 1500 对，4K 原生，标定退化）。
+# resume = 原 v2.1（_orig.pt，非 ft1000）：新 stage1 条件分布不同，从原权重重新对齐。
+model:
+  cldm:
+    target: diffbir.model.cldm.ControlLDM
+    params:
+      latent_scale_factor: 0.18215
+      unet_cfg:
+        use_checkpoint: True
+        image_size: 32 # unused
+        in_channels: 4
+        out_channels: 4
+        model_channels: 320
+        attention_resolutions: [ 4, 2, 1 ]
+        num_res_blocks: 2
+        channel_mult: [ 1, 2, 4, 4 ]
+        num_head_channels: 64 # need to fix for flash-attn
+        use_spatial_transformer: True
+        use_linear_in_transformer: True
+        transformer_depth: 1
+        context_dim: 1024
+        legacy: False
+      vae_cfg:
+        embed_dim: 4
+        ddconfig:
+          double_z: true
+          z_channels: 4
+          resolution: 256
+          in_channels: 3
+          out_ch: 3
+          ch: 128
+          ch_mult:
+          - 1
+          - 2
+          - 4
+          - 4
+          num_res_blocks: 2
+          attn_resolutions: []
+          dropout: 0.0
+      clip_cfg:
+        embed_dim: 1024
+        vision_cfg:
+          image_size: 224
+          layers: 32
+          width: 1280
+          head_width: 80
+          patch_size: 14
+        text_cfg:
+          context_length: 77
+          vocab_size: 49408
+          width: 1024
+          heads: 16
+          layers: 24
+        layer: "penultimate"
+      controlnet_cfg:
+        use_checkpoint: True
+        image_size: 32 # unused
+        in_channels: 4
+        hint_channels: 4
+        model_channels: 320
+        attention_resolutions: [ 4, 2, 1 ]
+        num_res_blocks: 2
+        channel_mult: [ 1, 2, 4, 4 ]
+        num_head_channels: 64 # need to fix for flash-attn
+        use_spatial_transformer: True
+        use_linear_in_transformer: True
+        transformer_depth: 1
+        context_dim: 1024
+        legacy: False
+  swinir:
+    target: diffbir.model.swinir.SwinIR
+    params:
+      img_size: 64
+      patch_size: 1
+      in_chans: 3
+      embed_dim: 180
+      depths: [6, 6, 6, 6, 6, 6, 6, 6]
+      num_heads: [6, 6, 6, 6, 6, 6, 6, 6]
+      window_size: 8
+      mlp_ratio: 2
+      sf: 8
+      img_range: 1.0
+      upsampler: "nearest+conv"
+      resi_connection: "1conv"
+      unshuffle: True
+      unshuffle_scale: 8
+  diffusion:
+    target: diffbir.model.gaussian_diffusion.Diffusion
+    params:
+      linear_start: 0.00085
+      linear_end: 0.0120
+      timesteps: 1000
+      zero_snr: True
+      parameterization: v
+
+dataset:
+  train:
+    target: diffbir.dataset.synth_ft.SynthFtDataset
+    params:
+      pairs_root: /home/liaitong/hw_comp/dataset/div8k_syn/train
+      cond_root: /home/liaitong/hw_comp/dataset/div8k_syn/cond
+      out_size: 512
+      crop_type: random
+
+batch_transform:
+  target: diffbir.dataset.batch_transform.IdentityBatchTransform
+
+train:
+  sd_path: /home/liaitong/hw_comp/vendor/DiffBIR/weights/sd2.1-base-zsnr-laionaes5.ckpt
+  exp_dir: /home/liaitong/hw_comp/checkpoints/stage2_ft_div8k
+  swinir_path: /home/liaitong/hw_comp/vendor/DiffBIR/weights/realesrgan_s4_swinir_100k.pth
+  learning_rate: 2e-5  # 安全区：stage1 教训 1e-4 会推出稳定态
+  batch_size: 4
+  num_workers: 2
+  train_steps: 3000
+  log_every: 50
+  ckpt_every: 1000
+  image_every: 1000
+  resume: /home/liaitong/hw_comp/vendor/DiffBIR/weights/DiffBIR_v2.1_orig.pt
+  noise_aug_timestep: 0

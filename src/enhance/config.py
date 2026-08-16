@@ -32,11 +32,16 @@ class Config:
     n: float
     w: float
     alpha: float
+    beta: float
+    sigma: float
     warmup_epochs: int = 3
     early_stop_patience: int = 8
     val_holdout_n: int = 10
     cache_root: Path = Path("dataset/ImagePairs/cache")
     cache_pairs: int = 128
+    length_factor: int = 1
+    stage1_lr: float = 1e-4
+    grad_accum: int = 1
 
     @classmethod
     def from_yaml(cls, path: Path) -> "Config":
@@ -55,6 +60,7 @@ class Config:
             zip_path=Path(out["zip_path"]),
             patch_size=d["training"]["patch_size"],
             batch_size=d["training"]["batch_size"],
+            grad_accum=int(d["training"].get("grad_accum", 1)),
             num_workers=d["training"]["num_workers"],
             seed=d["training"]["seed"],
             kind_2k_weight=d["training"]["kind_2k_weight"],
@@ -70,11 +76,15 @@ class Config:
             n=d["knobs"]["n"],
             w=d["knobs"]["w"],
             alpha=d["knobs"]["alpha"],
+            beta=float(d["knobs"].get("beta", 1.0)),
+            sigma=float(d["knobs"].get("sigma", 8.0)),
             warmup_epochs=int(d["training"].get("warmup_epochs", 3)),
             early_stop_patience=int(d["training"].get("early_stop_patience", 8)),
             val_holdout_n=int(d["training"].get("val_holdout_n", 10)),
             cache_root=Path(d["training"].get("cache_root", "dataset/ImagePairs/cache")),
             cache_pairs=int(d["training"].get("cache_pairs", 128)),
+            length_factor=int(d["training"].get("length_factor", 1)),
+            stage1_lr=float(d["training"].get("stage1_lr", 1e-4)),
         )
 
 if __name__ == "__main__":

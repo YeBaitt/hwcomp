@@ -18,10 +18,13 @@ def load_pair_float(pair: Pair, cache_root: Optional[Path] = None,
         key = npz_cache_key(pair, pairs_root) if pairs_root is not None else pair.lq_path.stem
         cache_file = cache_root / f"{key}.npz"
         if cache_file.exists():
-            data = np.load(cache_file)
-            lq = data["lq"].astype(np.float32) / 255.0
-            hr = data["hr"].astype(np.float32) / 255.0
-            return lq, hr
+            try:
+                data = np.load(cache_file)
+                lq = data["lq"].astype(np.float32) / 255.0
+                hr = data["hr"].astype(np.float32) / 255.0
+                return lq, hr
+            except Exception:
+                pass  # 缓存损坏（半写入/截断）则回退 PNG 解码，避免 DataLoader worker 崩溃
     return load_lq_hr(pair)
 
 def _shared_augment(lq: np.ndarray, hr: np.ndarray, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:
@@ -108,6 +111,17 @@ class EnhancementDataset(Dataset):
             res = to_same_res(lq, hr, kind)
             _lru_put(self._res_cache, cache_key, res, self._cache_pairs * 2)
         inp, target = res
+
+        # 小图补齐：短边 < patch_size 时 ps 变小，混合尺寸 batch 会触发 DataLoader
+        # worker collate 的共享存储 resize 崩溃（"Trying to resize storage that is not resizable"）。
+        # 实测 [正常, 小图] 顺序必崩（共享存储需 GROW），补齐后所有样本统一为 ps=patch_size。
+        h, w = inp.shape[:2]
+        if h < self.patch_size or w < self.patch_size:
+            ph, pw = max(self.patch_size, h), max(self.patch_size, w)
+            ph0, ph1 = (ph - h) // 2, (ph - h) - (ph - h) // 2
+            pw0, pw1 = (pw - w) // 2, (pw - w) - (pw - w) // 2
+            inp = np.pad(inp, ((ph0, ph1), (pw0, pw1), (0, 0)), mode="edge")
+            target = np.pad(target, ((ph0, ph1), (pw0, pw1), (0, 0)), mode="edge")
 
         inp, target = _shared_augment(inp, target, self.rng)
         h, w = inp.shape[:2]

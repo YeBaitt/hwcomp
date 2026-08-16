@@ -1,12 +1,11 @@
 # 数据（大文件，不入库）
 dataset/
 
-# 第三方 vendor 代码（子模块或直接 clone，不入库）
-vendor/
+# 第三方 vendor 源码（NAFNet / DiffBIR，含我们的微调改动）已入库；
+# 其中的预训练权重由下方 *.pth/*.ckpt/*.pt/*.safetensors 规则排除。
 
 # 输出与运行时产物
-output/
-output_dir/
+output*
 *.log
 my_work.zip
 *.zip

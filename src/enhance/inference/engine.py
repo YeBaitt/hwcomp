@@ -24,7 +24,8 @@ class EnhancementEngine:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.knobs = KnobConfig(lam=cfg.lam, n=cfg.n, w=cfg.w, alpha=cfg.alpha)
+        self.knobs = KnobConfig(lam=cfg.lam, n=cfg.n, w=cfg.w, alpha=cfg.alpha,
+                                beta=cfg.beta, sigma=cfg.sigma)
         self._stage1_model = None
 
     def _stage1_ckpt(self) -> Path:
