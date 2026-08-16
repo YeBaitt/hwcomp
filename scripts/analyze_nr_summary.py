@@ -10,7 +10,7 @@ from collections import defaultdict
 import numpy as np
 
 LOWER_BETTER = ["niqe", "brisque", "piqe", "ilniqe"]
-HIGHER_BETTER = ["musiq", "maniqa"]
+HIGHER_BETTER = ["musiq", "maniqa", "nima", "topiq_nr", "clipiqa"]
 ALL_M = LOWER_BETTER + HIGHER_BETTER
 EXTRA = ["mean_luma", "std_luma", "lapvar", "jpeg_bytes"]
 

@@ -27,11 +27,15 @@
 | ILNIQE ↓ | **26.5** | 27.3 | −0.8 | 62/100 |
 | MUSIQ ↑ | **36.6** | 31.4 | **+5.2** | 85/100 |
 | MANIQA ↑ | **0.286** | 0.260 | +0.026 | 81/100 |
+| NIMA ↑ | **4.98** | 4.90 | +0.075 | 84/100 |
+| TOPIQ-nr ↑ | **0.390** | 0.316 | **+0.074** | **98/100** |
+| CLIPIQA ↑ | **0.519** | 0.373 | **+0.146** | **99/100** |
 | 锐度(lapvar) ↑ | **310.7** | 106.6 | +204 | — |
 | JPEG 体积 | 3.93MB | 3.12MB | +0.81MB | — |
 
 输入原图基线：NIQE 8.25 / BRISQUE 65.7 / MUSIQ 25.8（增强后全线大幅改善）。
-**每项无参考感知指标都指向 probe 更好**，NIQE 全胜且相对变化最大（−26%）。
+**9 个无参考感知指标全部指向 probe 更好**；NIQE 全胜（100/100）且相对变化最大（−26%），
+CLIPIQA（99/100）/ TOPIQ-nr（98/100）/ BRISQUE（97/100）接近一边倒。
 
 ### 2.2 val 代理 —— 参考指标（test 无 GT，同配置在 5 对 val 复现，1024² 中心裁剪）
 
@@ -50,7 +54,8 @@
 
 ### 2.3 "哪个影响更大"
 
-- **方向最一致、区分度最强**：NIQE（全胜+幅度最大）> MUSIQ/BRISQUE（85–97 胜）> MANIQA/PIQE（81–90 胜）> ILNIQE（62 胜）。
+- **方向最一致、区分度最强**：NIQE（100/100 全胜）> CLIPIQA/TOPIQ-nr/BRISQUE（97–99 胜）> MUSIQ/MANIQA/NIMA（81–85 胜）> PIQE（90 胜）> ILNIQE（62 胜）。
+- 特别是**基于学习的现代 IQA（CLIPIQA/TOPIQ-nr，99/98 胜）**与官方方向高度一致，进一步佐证"感知侧"结论。
 - 但各无参考指标本次同向变化、彼此相关，**两个官方分点无法拆分精确权重**——只能说官方吃
   "无参考感知质量"这一簇，NIQE 是最可信的单一代理。
 
@@ -79,6 +84,7 @@ unzip -o -q my_work.zip -d /tmp/sub_mywork && mv /tmp/sub_mywork/output_dir/* /t
 # 1) test 100 张无参考指标（probe/my_work/原图）→ /tmp/test_nr_metrics.csv（约 15 分钟）
 python scripts/analyze_test_nr.py --probe /tmp/sub_probe --mywork /tmp/sub_mywork \
     --input dataset/huawei/test --out /tmp/test_nr_metrics.csv
+#    （9 指标：NIQE/BRISQUE/PIQE/ILNIQE/MUSIQ/MANIQA/NIMA/TOPIQ-nr/CLIPIQA）
 
 # 2) 汇总：均值表 + 配对差 + 胜场数
 python scripts/analyze_nr_summary.py --csv /tmp/test_nr_metrics.csv
@@ -88,8 +94,11 @@ python scripts/analyze_val_ref.py --cache /tmp/knob_sweep --out /tmp/val_metrics
 ```
 
 三个脚本：
-- `scripts/analyze_test_nr.py` — 官方打分同批 test 输出的无参考指标（仅本地缓存权重，不联网）。
+- `scripts/analyze_test_nr.py` — 官方打分同批 test 输出的无参考指标。权重文件缓存在
+  `~/.cache/torch/hub/pyiqa/`，首次跑会联网下载（几百 MB），之后本地复用。
 - `scripts/analyze_nr_summary.py` — 汇总 CSV，输出配对差与胜场数。
 - `scripts/analyze_val_ref.py` — val 上重建两档配置，算 PSNR/SSIM/LPIPS↔GT（依赖 knob 调优缓存 npy）。
 
-指标与方向：NIQE/BRISQUE/PIQE/ILNIQE 越低越好；MUSIQ/MANIQA 越高越好。
+指标与方向：NIQE/BRISQUE/PIQE/ILNIQE 越低越好；MUSIQ/MANIQA/NIMA/TOPIQ-nr/CLIPIQA 越高越好。
+（CLIPIQA 依赖 openai/CLIP，其 `import clip` 需要 `pkg_resources`——若报
+`ModuleNotFoundError: pkg_resources`，把 setuptools 降到 80.x：`pip install 'setuptools<81'`。）

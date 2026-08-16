@@ -1,15 +1,16 @@
 """对两份提交（probe vs my_work）在 test 100 张上计算无参考感知指标。
 
 用途：官方打分即基于 test 输出，此脚本直接在这些输出上算 NIQE/BRISQUE/PIQE/
-ILNIQE/MUSIQ/MANIQA（+ 亮度/锐度/JPEG 体积等低层统计），用于判断官方评分
-与哪个指标正相关。
+ILNIQE/MUSIQ/MANIQA/NIMA/TOPIQ-nr/CLIPIQA（+ 亮度/锐度/JPEG 体积等低层统计），
+用于判断官方评分与哪个指标正相关。
 
 前置：先解压提交 zip，得到含 100 张 caseN.jpg 的两个目录。
 用法:
   python scripts/analyze_test_nr.py \
       --probe /tmp/sub_probe --mywork /tmp/sub_mywork \
       --input dataset/huawei/test --out /tmp/test_nr_metrics.csv
-注：仅用本地已缓存权重的 pyiqa 指标，避免联网下载卡住。
+注：权重文件在 ~/.cache/torch/hub/pyiqa/，首次跑会联网下载（约几百 MB）；
+下载完成后即本地缓存，之后不再联网。若网络慢，可先手动初始化预热。
 """
 import argparse
 import csv
@@ -21,8 +22,10 @@ import numpy as np
 import torch
 
 LOWER_BETTER = ["niqe", "brisque", "piqe", "ilniqe"]
-HIGHER_BETTER = ["musiq", "maniqa"]
+HIGHER_BETTER = ["musiq", "maniqa", "nima", "topiq_nr", "clipiqa"]
 ALL_M = LOWER_BETTER + HIGHER_BETTER
+# 输入基线只算这批快速指标（跳过算法型慢指标 piqe/ilniqe）
+INPUT_M = ["niqe", "brisque", "musiq", "nima", "topiq_nr", "clipiqa"]
 
 
 def _load(p: Path):
@@ -64,13 +67,12 @@ def main():
         img_in = _load(args.input / name)
         img_p = _load(args.probe / name)
         img_m = _load(args.mywork / name)
-        # 输入基线只算 NIQE/BRISQUE/MUSIQ（其余指标慢，非核心对比）
         for src, img, full in (("input", img_in, False), ("probe", img_p, True), ("mywork", img_m, True)):
             row = [name, src]
             with torch.no_grad():
                 t = torch.from_numpy(img.transpose(2, 0, 1))[None].cuda()
                 for mn in ALL_M:
-                    if mn not in metrics or (not full and mn not in ("niqe", "brisque", "musiq")):
+                    if mn not in metrics or (not full and mn not in INPUT_M):
                         row.append("")
                         continue
                     try:
